@@ -8,7 +8,14 @@ function responseMock() {
 }
 
 describe('csrf middleware', () => {
+  const originalCookieSecure = process.env.COOKIE_SECURE;
+
+  afterEach(() => {
+    process.env.COOKIE_SECURE = originalCookieSecure;
+  });
+
   test('issues a reusable double-submit csrf token cookie', () => {
+    process.env.COOKIE_SECURE = 'false';
     const req = { cookies: { rare_oud_csrf: 'existing-token' } };
     const res = responseMock();
 
@@ -19,11 +26,28 @@ describe('csrf middleware', () => {
       'existing-token',
       expect.objectContaining({
         httpOnly: false,
-        sameSite: 'strict',
+        sameSite: 'lax',
         path: '/'
       })
     );
     expect(res.json).toHaveBeenCalledWith({ csrfToken: 'existing-token' });
+  });
+
+  test('uses cross-site secure cookies for production deployments', () => {
+    process.env.COOKIE_SECURE = 'true';
+    const req = { cookies: { rare_oud_csrf: 'existing-token' } };
+    const res = responseMock();
+
+    issueCsrfToken(req, res);
+
+    expect(res.cookie).toHaveBeenCalledWith(
+      'rare_oud_csrf',
+      'existing-token',
+      expect.objectContaining({
+        sameSite: 'none',
+        secure: true
+      })
+    );
   });
 
   test('allows safe methods and matching csrf header/cookie pairs', () => {

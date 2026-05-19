@@ -53,10 +53,14 @@ function hashToken(token) {
   return crypto.createHash('sha256').update(token).digest('hex');
 }
 
+function cookieSameSite() {
+  return process.env.COOKIE_SECURE === 'true' ? 'none' : 'lax';
+}
+
 function setRefreshCookie(res, token) {
   res.cookie('rare_oud_refresh', token, {
     httpOnly: true,
-    sameSite: 'strict',
+    sameSite: cookieSameSite(),
     secure: process.env.COOKIE_SECURE === 'true',
     path: '/api/auth',
     maxAge:
@@ -325,7 +329,7 @@ exports.refresh = async (req, res, next) => {
     } catch (_error) {
       res.clearCookie('rare_oud_refresh', {
         path: '/api/auth',
-        sameSite: 'strict',
+        sameSite: cookieSameSite(),
         secure: process.env.COOKIE_SECURE === 'true'
       });
 
@@ -379,7 +383,7 @@ exports.refresh = async (req, res, next) => {
       }
       res.clearCookie('rare_oud_refresh', {
         path: '/api/auth',
-        sameSite: 'strict',
+        sameSite: cookieSameSite(),
         secure: process.env.COOKIE_SECURE === 'true'
       });
 
@@ -394,7 +398,7 @@ exports.refresh = async (req, res, next) => {
     if (Number(user.token_version) !== Number(payload.tokenVersion || 0)) {
       res.clearCookie('rare_oud_refresh', {
         path: '/api/auth',
-        sameSite: 'strict',
+        sameSite: cookieSameSite(),
         secure: process.env.COOKIE_SECURE === 'true'
       });
 
@@ -501,7 +505,7 @@ exports.changePassword = async (req, res, next) => {
 
     res.clearCookie('rare_oud_refresh', {
       path: '/api/auth',
-      sameSite: 'strict',
+      sameSite: cookieSameSite(),
       secure: process.env.COOKIE_SECURE === 'true'
     });
 
@@ -678,7 +682,7 @@ exports.logout = async (req, res, next) => {
 
     res.clearCookie('rare_oud_refresh', {
       path: '/api/auth',
-      sameSite: 'strict',
+      sameSite: cookieSameSite(),
       secure: process.env.COOKIE_SECURE === 'true'
     });
 

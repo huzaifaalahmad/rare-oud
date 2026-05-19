@@ -4,12 +4,16 @@ const AppError = require('../utils/AppError');
 const SAFE = new Set(['GET', 'HEAD', 'OPTIONS']);
 const COOKIE = 'rare_oud_csrf';
 
+function cookieSameSite() {
+  return process.env.COOKIE_SECURE === 'true' ? 'none' : 'lax';
+}
+
 function issueCsrfToken(req, res) {
   const existing = req.cookies?.[COOKIE];
   const token = existing || crypto.randomBytes(32).toString('hex');
   res.cookie(COOKIE, token, {
     httpOnly: false,
-    sameSite: 'strict',
+    sameSite: cookieSameSite(),
     secure: process.env.COOKIE_SECURE === 'true',
     path: '/',
     maxAge: 2 * 60 * 60 * 1000
