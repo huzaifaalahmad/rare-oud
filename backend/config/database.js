@@ -37,12 +37,13 @@ function configFromDatabaseUrl() {
 function buildPoolConfig() {
   const urlConfig = configFromDatabaseUrl();
   const ssl = parseSslOption(process.env.DB_SSL);
+  const hasDatabaseUrl = Boolean(process.env.DATABASE_URL);
 
   return {
-    host: process.env.DB_HOST || urlConfig.host,
-    port: Number(process.env.DB_PORT || urlConfig.port || 3306),
-    user: process.env.DB_USER || urlConfig.user,
-    password: process.env.DB_PASSWORD ?? urlConfig.password,
+    host: hasDatabaseUrl ? urlConfig.host : process.env.DB_HOST,
+    port: Number(hasDatabaseUrl ? urlConfig.port || 3306 : process.env.DB_PORT || 3306),
+    user: hasDatabaseUrl ? urlConfig.user : process.env.DB_USER,
+    password: hasDatabaseUrl ? urlConfig.password : process.env.DB_PASSWORD,
     database: process.env.DB_NAME || urlConfig.database,
     ssl: ssl || urlConfig.ssl,
     waitForConnections: true,
