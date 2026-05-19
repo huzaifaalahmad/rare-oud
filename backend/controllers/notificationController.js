@@ -8,8 +8,12 @@ exports.list = async (req, res, next) => {
   try {
     const { limit, offset } = page(req);
     const notifications = await db.query(
-      'SELECT * FROM notifications WHERE user_id=:user_id ORDER BY created_at DESC LIMIT :limit OFFSET :offset',
-      { user_id: req.user.id, limit, offset }
+      `SELECT *
+       FROM notifications
+       WHERE user_id=:user_id
+       ORDER BY created_at DESC
+       LIMIT ${limit} OFFSET ${offset}`,
+      { user_id: req.user.id }
     );
     const unreadRows = await db.query('SELECT COUNT(*) unread FROM notifications WHERE user_id=:user_id AND is_read=FALSE', { user_id: req.user.id });
     res.json({ notifications, unread: unreadRows[0]?.unread || 0, limit, offset });

@@ -14,7 +14,7 @@ exports.createProductReview = async (req, res, next) => {
   } catch (e) { next(e); }
 };
 exports.adminList = async (req, res, next) => {
-  try { const limit=Math.min(parseInt(req.query.limit||100,10),200), offset=Math.max(parseInt(req.query.offset||0,10),0); res.json({ reviews: await db.query('SELECT r.*,u.name user_name,p.name_ar product_name_ar FROM product_reviews r JOIN users u ON u.id=r.user_id JOIN products p ON p.id=r.product_id WHERE r.deleted_at IS NULL ORDER BY r.created_at DESC LIMIT :limit OFFSET :offset',{limit,offset}) }); }
+  try { const limit=Math.min(parseInt(req.query.limit||100,10),200), offset=Math.max(parseInt(req.query.offset||0,10),0); res.json({ reviews: await db.query(`SELECT r.*,u.name user_name,p.name_ar product_name_ar FROM product_reviews r JOIN users u ON u.id=r.user_id JOIN products p ON p.id=r.product_id WHERE r.deleted_at IS NULL ORDER BY r.created_at DESC LIMIT ${limit} OFFSET ${offset}`) }); }
   catch (e) { next(e); }
 };
 exports.approve = async (req, res, next) => { try { await db.query('UPDATE product_reviews SET is_approved=:approved WHERE id=:id', { id: req.params.id, approved: req.body.approved ?? true }); await audit(req, 'moderate', 'review', req.params.id, req.body); res.json({ message: 'Review updated' }); } catch (e) { next(e); } };
@@ -24,7 +24,7 @@ exports.adminSiteList = async (req, res, next) => {
   try {
     const limit = Math.min(Math.max(parseInt(req.query.limit || 100, 10), 1), 200);
     const offset = Math.max(parseInt(req.query.offset || 0, 10), 0);
-    const reviews = await db.query('SELECT sr.*, u.name user_name FROM site_reviews sr LEFT JOIN users u ON u.id=sr.user_id WHERE sr.deleted_at IS NULL ORDER BY sr.created_at DESC LIMIT :limit OFFSET :offset', { limit, offset });
+    const reviews = await db.query(`SELECT sr.*, u.name user_name FROM site_reviews sr LEFT JOIN users u ON u.id=sr.user_id WHERE sr.deleted_at IS NULL ORDER BY sr.created_at DESC LIMIT ${limit} OFFSET ${offset}`);
     res.json({ reviews, limit, offset });
   } catch (e) { next(e); }
 };

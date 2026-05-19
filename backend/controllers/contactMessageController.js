@@ -203,8 +203,8 @@ exports.adminList = async (req, res, next) => {
        LEFT JOIN users u ON u.id=cm.user_id
        ${where}
        ORDER BY cm.created_at DESC
-       LIMIT :limit OFFSET :offset`,
-      { status, limit, offset }
+       LIMIT ${limit} OFFSET ${offset}`,
+      status ? { status } : {}
     );
 
     res.json({
@@ -232,8 +232,8 @@ exports.mine = async (req, res, next) => {
        FROM contact_messages
        WHERE user_id=:user_id
        ORDER BY created_at DESC
-       LIMIT :limit OFFSET :offset`,
-      { user_id: req.user.id, limit, offset }
+       LIMIT ${limit} OFFSET ${offset}`,
+      { user_id: req.user.id }
     );
 
     res.json({

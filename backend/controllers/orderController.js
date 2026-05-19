@@ -24,6 +24,28 @@ const VALID_ORDER_STATUS = ['pending', 'approved', 'rejected', 'in_progress', 'c
 const ORDER_PUBLIC_FIELDS = 'id, order_number, status, customer_name, customer_phone, country, notes, subtotal, total, created_at, updated_at';
 const ORDER_ADMIN_FIELDS = 'id, user_id, order_number, status, customer_name, customer_email, customer_phone, country, notes, subtotal, total, created_at, updated_at';
 
+async function getAdminUsers() {
+  return db.query(
+    `SELECT id
+     FROM users
+     WHERE role='admin'
+       AND is_active=TRUE
+       AND deleted_at IS NULL`
+  ).catch(() => []);
+}
+
+async function notifyAdmins(order) {
+  const admins = await getAdminUsers();
+  await Promise.allSettled(admins.map(admin => createNotification(admin.id, {
+    type: 'direct_order_admin',
+    title_ar: 'طلب منتج جديد',
+    title_en: 'New product request',
+    body_ar: `${order.customer_name} أرسل طلب منتج جديد ${order.order_number}.`,
+    body_en: `${order.customer_name} submitted product request ${order.order_number}.`,
+    link_url: '/admin?tab=orders'
+  })));
+}
+
 exports.createDirect = async (req, res, next) => {
   try {
     fail(req);
@@ -62,6 +84,10 @@ exports.createDirect = async (req, res, next) => {
         link_url: '/my-orders'
       }).catch(error => logger.error('Notification creation failed', { error: error.message }));
     }
+    await notifyAdmins({
+      order_number: orderNumber,
+      customer_name: b.customer_name
+    }).catch(error => logger.error('Admin direct order notification failed', { error: error.message }));
     if (sendOrderConfirmationEmail && b.customer_email) {
       sendOrderConfirmationEmail(b.customer_email, { order_number: orderNumber, id: result.id })
         .catch(err => logger.error('Direct order email failed', { error: err.message }));
@@ -73,7 +99,7 @@ exports.createDirect = async (req, res, next) => {
 exports.mine = async (req, res, next) => {
   try {
     const { limit, offset } = page(req);
-    const orders = await db.query(`SELECT ${ORDER_PUBLIC_FIELDS} FROM orders WHERE user_id=:id AND deleted_at IS NULL ORDER BY created_at DESC LIMIT :limit OFFSET :offset`, { id: req.user.id, limit, offset });
+    const orders = await db.query(`SELECT ${ORDER_PUBLIC_FIELDS} FROM orders WHERE user_id=:id AND deleted_at IS NULL ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}`, { id: req.user.id });
     res.json({ orders, limit, offset });
   } catch (e) { next(e); }
 };
@@ -83,8 +109,9 @@ exports.adminList = async (req, res, next) => {
     const { limit, offset } = page(req, 200);
     const status = VALID_ORDER_STATUS.includes(req.query.status) ? req.query.status : undefined;
     const where = status ? 'WHERE status=:status AND deleted_at IS NULL' : 'WHERE deleted_at IS NULL';
-    const total = await db.query(`SELECT COUNT(*) total FROM orders ${where}`, { status });
-    const orders = await db.query(`SELECT ${ORDER_ADMIN_FIELDS} FROM orders ${where} ORDER BY created_at DESC LIMIT :limit OFFSET :offset`, { status, limit, offset });
+    const params = status ? { status } : {};
+    const total = await db.query(`SELECT COUNT(*) total FROM orders ${where}`, params);
+    const orders = await db.query(`SELECT ${ORDER_ADMIN_FIELDS} FROM orders ${where} ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}`, params);
     res.json({ orders, total: total[0]?.total || 0, limit, offset });
   } catch (e) { next(e); }
 };

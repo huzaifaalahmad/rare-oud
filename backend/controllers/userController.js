@@ -20,8 +20,11 @@ exports.adminList = async (req, res, next) => {
     const { limit, offset } = page(req, 200);
     const totalRows = await db.query('SELECT COUNT(*) total FROM users WHERE deleted_at IS NULL');
     const users = await db.query(
-      'SELECT id,name,email,phone,role,is_active,created_at FROM users WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT :limit OFFSET :offset',
-      { limit, offset }
+      `SELECT id,name,email,phone,role,is_active,created_at
+       FROM users
+       WHERE deleted_at IS NULL
+       ORDER BY created_at DESC
+       LIMIT ${limit} OFFSET ${offset}`
     );
     res.json({ users, total: totalRows[0]?.total || 0, limit, offset });
   } catch (e) { next(e); }

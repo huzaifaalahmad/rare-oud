@@ -25,7 +25,7 @@ exports.mediaLibrary = async (req, res, next) => {
   try {
     const limit = Math.min(parseInt(req.query.limit || 60, 10), 200);
     const offset = Math.max(parseInt(req.query.offset || 0, 10), 0);
-    const images = await db.query(`SELECT pi.*, p.name_ar, p.name_en FROM product_images pi JOIN products p ON p.id=pi.product_id ORDER BY pi.created_at DESC LIMIT :limit OFFSET :offset`, { limit, offset });
+    const images = await db.query(`SELECT pi.*, p.name_ar, p.name_en FROM product_images pi JOIN products p ON p.id=pi.product_id ORDER BY pi.created_at DESC LIMIT ${limit} OFFSET ${offset}`);
     res.json({ images });
   } catch (e) { next(e); }
 };
@@ -49,7 +49,7 @@ exports.activity = async (req, res, next) => {
   try {
     const limit = Math.min(parseInt(req.query.limit || 80, 10), 200);
     const offset = Math.max(parseInt(req.query.offset || 0, 10), 0);
-    const activity = await db.query('SELECT l.*, u.name admin_name FROM admin_audit_logs l LEFT JOIN users u ON u.id=l.admin_id ORDER BY l.created_at DESC LIMIT :limit OFFSET :offset', { limit, offset });
+    const activity = await db.query(`SELECT l.*, u.name admin_name FROM admin_audit_logs l LEFT JOIN users u ON u.id=l.admin_id ORDER BY l.created_at DESC LIMIT ${limit} OFFSET ${offset}`);
     res.json({ activity, limit, offset });
   } catch (e) { next(e); }
 };
@@ -111,7 +111,7 @@ exports.uploadAudit = async (req, res, next) => {
   try {
     const limit = Math.min(parseInt(req.query.limit || 80, 10), 200);
     const offset = Math.max(parseInt(req.query.offset || 0, 10), 0);
-    const rows = await db.query('SELECT id,user_id,request_id,original_name,mime_type,size_bytes,sha256,status,reason,ip_address,created_at FROM upload_audit_logs ORDER BY created_at DESC LIMIT :limit OFFSET :offset', { limit, offset });
+    const rows = await db.query(`SELECT id,user_id,request_id,original_name,mime_type,size_bytes,sha256,status,reason,ip_address,created_at FROM upload_audit_logs ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}`);
     res.json({ uploads: rows, limit, offset });
   } catch (e) { next(e); }
 };
