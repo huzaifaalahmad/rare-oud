@@ -144,10 +144,11 @@ export function AuthProvider({ children }) {
   async function login(email, password) {
     setLoading(true);
     try {
-      const response = await api.post('/auth/login', {
-        email,
-        password
-      });
+      const response = await api.post(
+        '/auth/login',
+        { email, password },
+        { skipAuthRefresh: true }
+      );
 
       const nextToken =
         response.data?.token ||

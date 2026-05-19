@@ -16,6 +16,24 @@ function readCookie(name) {
 let csrfToken = readCookie('rare_oud_csrf') || '';
 let refreshPromise = null;
 
+function shouldAttemptRefresh(config = {}) {
+  if (config.skipAuthRefresh || config._retry) return false;
+
+  const url = String(config.url || '');
+  if (
+    url.includes('/auth/login') ||
+    url.includes('/auth/register') ||
+    url.includes('/auth/refresh') ||
+    url.includes('/auth/csrf-token') ||
+    url.includes('/auth/forgot-password') ||
+    url.includes('/auth/reset-password')
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
 export async function ensureCsrfToken() {
   if (csrfToken) return csrfToken;
   const { data } = await api.get('/auth/csrf-token', { skipAuthRefresh: true });
@@ -42,7 +60,7 @@ api.interceptors.response.use(
   (res) => res,
   async (error) => {
     const original = error.config || {};
-    if (error.response?.status === 401 && !original._retry && !original.skipAuthRefresh) {
+    if (error.response?.status === 401 && shouldAttemptRefresh(original)) {
       original._retry = true;
       try {
         refreshPromise ||= api.post('/auth/refresh', {}, { skipAuthRefresh: true }).finally(() => { refreshPromise = null; });
