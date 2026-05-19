@@ -13,6 +13,7 @@ const ZIP_CENTRAL_DIR = Buffer.from([0x50, 0x4b, 0x01, 0x02]);
 const ZIP_END = Buffer.from([0x50, 0x4b, 0x05, 0x06]);
 const SVG_MARKERS = [/\<svg[\s>]/i, /\<script[\s>]/i, /on\w+\s*=/i, /javascript:/i, /data:text\/html/i];
 const EXECUTABLE_MARKERS = [Buffer.from('MZ'), Buffer.from('\x7fELF', 'binary'), Buffer.from('<?php'), Buffer.from('#!/bin/sh'), Buffer.from('#!/usr/bin/env')];
+const defaultMaxFileSize = 12 * 1024 * 1024;
 
 async function sha256File(filePath) {
   const data = await fs.readFile(filePath);
@@ -40,7 +41,7 @@ async function readHead(filePath, bytes = 8192) {
 
 async function assertNoEmbeddedPayload(filePath) {
   const stat = await fs.stat(filePath);
-  if (stat.size > Number(process.env.UPLOAD_MAX_FILE_SIZE_BYTES || 2 * 1024 * 1024)) {
+  if (stat.size > Number(process.env.UPLOAD_MAX_FILE_SIZE_BYTES || defaultMaxFileSize)) {
     throw new AppError('Uploaded file exceeds configured security limit', 413, 'UPLOAD_TOO_LARGE');
   }
   const data = await fs.readFile(filePath);

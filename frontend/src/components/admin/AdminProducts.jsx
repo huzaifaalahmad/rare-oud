@@ -13,6 +13,10 @@ const empty = {
   historical_geographic_classification_en: '', is_featured: false, is_active: true
 };
 
+const MAX_PRODUCT_IMAGES = 4;
+const MAX_IMAGE_BYTES = 12 * 1024 * 1024;
+const ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+
 function toForm(product) {
   const out = { ...empty };
   for (const key of Object.keys(out)) out[key] = product[key] ?? out[key];
@@ -49,6 +53,36 @@ export default function AdminProducts() {
 
   function set(k, v) {
     setForm(f => ({ ...f, [k]: v, slug: k === 'name_en' && !f.slug ? slugify(v) : f.slug }));
+  }
+
+  function handleFileSelection(event) {
+    const selected = Array.from(event.target.files || []);
+
+    if (selected.length > MAX_PRODUCT_IMAGES) {
+      setFiles([]);
+      event.target.value = '';
+      setError(isArabic ? 'يمكنك رفع 4 صور كحد أقصى لكل منتج.' : 'Upload up to 4 images per product.');
+      return;
+    }
+
+    const unsupported = selected.find(file => !ALLOWED_IMAGE_TYPES.has(file.type));
+    if (unsupported) {
+      setFiles([]);
+      event.target.value = '';
+      setError(isArabic ? 'الصور المسموحة فقط: JPG أو PNG أو WebP.' : 'Allowed images only: JPG, PNG, or WebP.');
+      return;
+    }
+
+    const tooLarge = selected.find(file => file.size > MAX_IMAGE_BYTES);
+    if (tooLarge) {
+      setFiles([]);
+      event.target.value = '';
+      setError(isArabic ? 'حجم كل صورة يجب ألا يتجاوز 12MB.' : 'Each image must be 12MB or smaller.');
+      return;
+    }
+
+    setError('');
+    setFiles(selected);
   }
 
   function payloadFromForm() {
@@ -103,7 +137,7 @@ export default function AdminProducts() {
       if (files.length) {
         const fd = new FormData();
         files.forEach(f => fd.append('images', f));
-        await api.post(`/products/${id}/images`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+        await api.post(`/products/${id}/images`, fd);
       }
       if (media.audio) await api.post(`/products/${id}/media`, { media_type: 'audio', title_ar: 'عينة صوت', title_en: 'Audio sample', drive_url: media.audio });
       if (media.video) await api.post(`/products/${id}/media`, { media_type: 'video', title_ar: 'فيديو', title_en: 'Video', drive_url: media.video });
@@ -149,7 +183,7 @@ export default function AdminProducts() {
         <label>{isArabic ? 'السعر' : 'Price'}<input required type="number" min="0" step="0.01" value={form.price} onChange={e => set('price', e.target.value)} /></label>
         <label>{isArabic ? 'المخزون' : 'Stock'}<input required type="number" min="0" value={form.stock} onChange={e => set('stock', e.target.value)} /></label>
         <label>{isArabic ? 'الحالة' : 'Condition'}<select value={form.condition_status} onChange={e => set('condition_status', e.target.value)}><option value="new">{isArabic ? 'جديد' : 'New'}</option><option value="used">{isArabic ? 'مستعمل' : 'Used'}</option></select></label>
-        <label>{isArabic ? 'الصور (حتى 4 صور)' : 'Images (up to 4)'}<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple onChange={e => setFiles([...e.target.files].slice(0, 4))} /></label>
+        <label>{isArabic ? 'الصور (حتى 4 صور)' : 'Images (up to 4)'}<input type="file" accept="image/png,image/jpeg,image/webp" multiple onChange={handleFileSelection} /></label>
         <label>{isArabic ? 'رابط الفيديو من Drive' : 'Video Drive URL'}<input value={media.video} onChange={e => setMedia({ ...media, video: e.target.value })} /></label>
         <label>{isArabic ? 'رابط الصوت من Drive' : 'Audio Drive URL'}<input value={media.audio} onChange={e => setMedia({ ...media, audio: e.target.value })} /></label>
         <label>{isArabic ? 'الوصف العربي' : 'Arabic description'}<textarea value={form.description_ar} onChange={e => set('description_ar', e.target.value)} /></label>

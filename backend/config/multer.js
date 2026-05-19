@@ -17,8 +17,9 @@ fs.mkdirSync(tmpDir, { recursive: true });
 fs.mkdirSync(productDir, { recursive: true });
 
 const allowedMime = new Set(['image/jpeg', 'image/png', 'image/webp']);
-const maxFileSize = Number(process.env.UPLOAD_MAX_FILE_SIZE_BYTES || 2 * 1024 * 1024);
-const maxFiles = Number(process.env.UPLOAD_MAX_FILES || 8);
+const defaultMaxFileSize = 12 * 1024 * 1024;
+const maxFileSize = Number(process.env.UPLOAD_MAX_FILE_SIZE_BYTES || defaultMaxFileSize);
+const maxFiles = Number(process.env.UPLOAD_MAX_FILES || 4);
 
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, tmpDir),
@@ -34,7 +35,7 @@ const upload = multer({
   fileFilter(_req, file, cb) {
     // Metadata is only a first gate. persistValidatedImages() verifies magic bytes from disk.
     if (!allowedMime.has(file.mimetype)) {
-      return cb(new AppError('Only safe image files are allowed: jpg, png, webp, gif', 400, 'INVALID_FILE_TYPE'));
+      return cb(new AppError('Only safe image files are allowed: jpg, png, webp', 400, 'INVALID_FILE_TYPE'));
     }
     cb(null, true);
   }

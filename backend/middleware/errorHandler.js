@@ -6,6 +6,17 @@ function notFound(req, _res, next) {
 }
 
 function errorHandler(err, req, res, _next) {
+  if (err.code === 'LIMIT_FILE_SIZE') {
+    err.status = 413;
+    err.message = 'Image is too large. Upload JPG, PNG, or WebP files up to 12MB each.';
+  } else if (err.code === 'LIMIT_FILE_COUNT') {
+    err.status = 400;
+    err.message = 'Too many images. Upload up to 4 images per product.';
+  } else if (err.code === 'LIMIT_UNEXPECTED_FILE') {
+    err.status = 400;
+    err.message = 'Invalid image upload field. Use the product images selector.';
+  }
+
   const status = err.status || err.statusCode || 500;
   const isProd = process.env.NODE_ENV === 'production';
   const requestMeta = {
