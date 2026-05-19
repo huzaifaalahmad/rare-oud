@@ -1,0 +1,47 @@
+@font-face {
+  font-family: 'Rare Oud Latin';
+  src: url('/font/Britanica Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Rare Oud Latin';
+  src: url('/font/Britanica Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Rare Oud Latin Display';
+  src: url('/font/Britanica Expanded Bold.ttf') format('truetype');
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Rare Oud Latin Display';
+  src: url('/font/Britanica Semi Expanded Black.ttf') format('truetype');
+  font-weight: 950;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Rare Oud Arabic Accent';
+  src: url('/font/Rawafed Zainab Font.otf') format('opentype');
+  font-weight: 400 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --font-latin: 'Rare Oud Latin', Arial, Helvetica, sans-serif;
+  --font-latin-display: 'Rare Oud Latin Display', 'Rare Oud Latin', Arial, Helvetica, sans-serif;
+  --font-arabic: 'Segoe UI', 'Tahoma', 'Arial', sans-serif;
+  --font-arabic-display: 'Segoe UI', 'Tahoma', 'Arial', sans-serif;
+  --font-arabic-accent: 'Rare Oud Arabic Accent', 'Segoe UI', 'Tahoma', 'Arial', sans-serif;
+}

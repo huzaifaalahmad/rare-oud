@@ -1,0 +1,2 @@
+const r=require('express').Router(); const c=require('../controllers/categoryController'); const auth=require('../middleware/auth'); const admin=require('../middleware/admin'); const {requirePermission}=admin;
+r.get('/',c.list); r.post('/',auth,requirePermission('categories.write'),c.validate,c.create); r.put('/:id',auth,requirePermission('categories.write'),c.validate,c.update); r.delete('/:id',auth,requirePermission('categories.delete'),c.remove); module.exports=r;

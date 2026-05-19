@@ -1,0 +1,29 @@
+{
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "validate": "node ../scripts/validate-project.js",
+    "test": "vitest run",
+    "test:e2e": "npm run build && node tests/run-playwright.mjs tests/e2e",
+    "security:audit": "npm audit --audit-level=moderate",
+    "secret:scan": "node ../scripts/secret-scan.js",
+    "test:a11y": "npm run build && node tests/run-playwright.mjs tests/a11y.spec.js",
+    "test:motion": "npm run build && node tests/run-playwright.mjs tests/reduced-motion.spec.js"
+  },
+  "dependencies": {
+    "@sentry/react": "^8.25.0",
+    "@vitejs/plugin-react": "^6.0.1",
+    "axios": "^1.7.7",
+    "lucide-react": "^0.453.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.26.2",
+    "vite": "^8.0.12"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.2",
+    "jsdom": "^25.0.1",
+    "vitest": "^4.1.6"
+  }
+}

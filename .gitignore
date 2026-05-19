@@ -1,0 +1,35 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# environments / secrets
+.env
+.env.*
+!.env.example
+!.env.production.example
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+secrets/
+.vault-token
+.doppler/
+
+# runtime data
+backend/logs/
+*.log
+backend/uploads/*
+!backend/uploads/.gitkeep
+backend/uploads/tmp/
+coverage/
+dist/
+build/
+.cache/
+.tmp/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

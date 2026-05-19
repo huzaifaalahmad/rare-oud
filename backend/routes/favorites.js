@@ -1,0 +1,1 @@
+const r=require('express').Router(); const c=require('../controllers/favoriteController'); const auth=require('../middleware/auth'); r.get('/',auth,c.list); r.get('/:productId/status',auth,c.status); r.post('/:productId/toggle',auth,c.toggle); module.exports=r;

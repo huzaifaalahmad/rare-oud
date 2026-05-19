@@ -1,0 +1,64 @@
+{
+  "scripts": {
+    "dev": "nodemon server.js",
+    "start": "node server.js",
+    "seed": "npm run seed:admin && npm run seed:data",
+    "seed:admin": "node seeders/seedAdmin.js",
+    "seed:data": "node seeders/seedData.js",
+    "test:smoke": "node tests/smoke.test.js",
+    "validate": "node ../scripts/validate-project.js",
+    "healthcheck": "node scripts/healthcheck.js",
+    "migrate": "node scripts/migrate.js",
+    "test:contract": "node tests/api-contract.test.js",
+    "worker:emails": "node workers/emailWorker.js",
+    "test": "jest --coverage",
+    "worker:notifications": "node workers/notificationWorker.js",
+    "worker:audit": "node workers/auditWorker.js",
+    "worker:all": "node workers/allWorkers.js",
+    "queue:replay": "node scripts/replay-dead-letter.js",
+    "test:integration": "jest tests/integration --runInBand --coverage",
+    "security:audit": "npm audit --audit-level=moderate",
+    "secret:scan": "node ../scripts/secret-scan.js",
+    "test:security": "jest tests/security.test.js --runInBand"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.699.0",
+    "@opentelemetry/auto-instrumentations-node": "^0.76.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.218.0",
+    "@opentelemetry/sdk-node": "^0.218.0",
+    "@sentry/node": "^8.25.0",
+    "bcryptjs": "^2.4.3",
+    "bullmq": "^5.8.0",
+    "compression": "^1.7.4",
+    "cookie-parser": "^1.4.6",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
+    "express-slow-down": "^2.0.3",
+    "express-validator": "^7.2.1",
+    "helmet": "^8.0.0",
+    "ioredis": "^5.4.1",
+    "joi": "^17.13.3",
+    "jsonwebtoken": "^9.0.2",
+    "morgan": "^1.10.0",
+    "multer": "^2.1.1",
+    "mysql2": "^3.11.5",
+    "nodemailer": "^8.0.7",
+    "prom-client": "^15.1.3",
+    "sharp": "^0.33.5",
+    "winston": "^3.17.0"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "nodemon": "^3.1.9"
+  },
+  "type": "commonjs",
+  "jest": {
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "api-contract.test.js",
+      "smoke.test.js"
+    ]
+  }
+}

@@ -1,0 +1,22 @@
+CREATE TABLE IF NOT EXISTS contact_messages (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT UNSIGNED NULL,
+  name VARCHAR(140) NOT NULL,
+  email VARCHAR(190) NULL,
+  phone VARCHAR(40) NULL,
+  subject VARCHAR(180) NULL,
+  message TEXT NOT NULL,
+  status ENUM('new','read','replied','archived') NOT NULL DEFAULT 'new',
+  admin_reply TEXT NULL,
+  responded_by BIGINT UNSIGNED NULL,
+  responded_at TIMESTAMP NULL,
+  ip_address VARCHAR(80) NULL,
+  user_agent VARCHAR(500) NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
+  FOREIGN KEY (responded_by) REFERENCES users(id) ON DELETE SET NULL,
+  INDEX idx_contact_messages_status_created (status, created_at),
+  INDEX idx_contact_messages_user_created (user_id, created_at),
+  INDEX idx_contact_messages_email_created (email, created_at)
+) ENGINE=InnoDB;
