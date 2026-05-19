@@ -133,20 +133,21 @@ function productJoins() {
 
 async function listProducts(query) {
   const { whereSql, params, sortSql } = buildFilters(query);
+  const { limit, offset, ...sqlParams } = params;
   const rows = await db.query(
     `SELECT ${productSelect()}
      FROM products p
      ${productJoins()}
      WHERE ${whereSql}
      ORDER BY ${sortSql}
-     LIMIT :limit OFFSET :offset`,
-    params
+     LIMIT ${limit} OFFSET ${offset}`,
+    sqlParams
   );
   const countRows = await db.query(
     `SELECT COUNT(*) total FROM products p JOIN categories c ON c.id=p.category_id WHERE ${whereSql}`,
-    params
+    sqlParams
   );
-  return { products: rows, total: countRows[0]?.total || 0, limit: params.limit, offset: params.offset };
+  return { products: rows, total: countRows[0]?.total || 0, limit, offset };
 }
 
 async function findBySlug(slug) {
