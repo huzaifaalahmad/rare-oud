@@ -131,4 +131,13 @@ r.patch(
   c.update
 );
 
+r.delete(
+  '/:id',
+  auth,
+  requirePermission('custom_orders.write'),
+  [param('id').isInt({ min: 1 })],
+  sendValidationErrors,
+  c.remove
+);
+
 module.exports = r;

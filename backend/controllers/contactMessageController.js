@@ -349,3 +349,17 @@ exports.update = async (req, res, next) => {
     next(error);
   }
 };
+
+exports.remove = async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    const rows = await db.query('SELECT id FROM contact_messages WHERE id=:id LIMIT 1', { id });
+    if (!rows.length) throw new AppError('Contact message not found', 404, 'CONTACT_MESSAGE_NOT_FOUND');
+
+    await db.query('DELETE FROM contact_messages WHERE id=:id', { id });
+    await audit(req, 'delete', 'contact_message', id);
+    res.json({ message: 'Contact message deleted' });
+  } catch (error) {
+    next(error);
+  }
+};

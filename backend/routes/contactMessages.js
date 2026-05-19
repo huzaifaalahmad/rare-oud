@@ -95,5 +95,8 @@ r.get('/mine', auth, [
 ], sendValidationErrors, c.mine);
 r.get('/admin', auth, requirePermission('contact_messages.read'), adminListValidation, sendValidationErrors, c.adminList);
 r.patch('/:id', auth, requirePermission('contact_messages.write'), updateValidation, sendValidationErrors, c.update);
+r.delete('/:id', auth, requirePermission('contact_messages.write'), [
+  param('id').isInt({ min: 1 }).toInt()
+], sendValidationErrors, c.remove);
 
 module.exports = r;

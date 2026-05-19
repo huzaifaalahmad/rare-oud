@@ -30,6 +30,14 @@ function replyStatusMessage(lang, data) {
     );
   }
 
+  if (data?.email_reply_scheduled) {
+    return t(
+      lang,
+      'تم حفظ الرد وإنشاء إشعار للمستخدم. سيتم إرسال نسخة البريد بالخلفية خلال لحظات.',
+      'Reply saved and user notification created. The email copy will be sent in the background shortly.'
+    );
+  }
+
   if (data?.email_delivery_configured) {
     return t(
       lang,
@@ -106,6 +114,21 @@ export default function AdminContactMessages() {
     }
   }
 
+  async function remove(item) {
+    if (!window.confirm(t(lang, 'حذف رسالة التواصل؟', 'Delete contact message?'))) return;
+    setState(current => ({ ...current, error: '', message: '' }));
+    try {
+      await api.delete(`/contact-messages/${item.id}`);
+      setItems(list => list.filter(row => row.id !== item.id));
+      setState(current => ({ ...current, message: t(lang, 'تم حذف الرسالة.', 'Message deleted.') }));
+    } catch (error) {
+      setState(current => ({
+        ...current,
+        error: error.response?.data?.message || t(lang, 'تعذر حذف الرسالة', 'Unable to delete message')
+      }));
+    }
+  }
+
   const canPrev = page.offset > 0;
   const canNext = page.offset + page.limit < page.total;
 
@@ -167,6 +190,9 @@ export default function AdminContactMessages() {
                     <select value={item.status} onChange={e => update(item, e.target.value)}>
                       {STATUSES.map(status => <option key={status} value={status}>{status}</option>)}
                     </select>
+                    <button className="icon-btn" type="button" onClick={() => remove(item)}>
+                      {t(lang, 'حذف', 'Delete')}
+                    </button>
                     <button className="icon-btn" type="button" onClick={() => update(item, replies[item.id] ? 'replied' : item.status)}>
                       {t(lang, 'حفظ', 'Save')}
                     </button>

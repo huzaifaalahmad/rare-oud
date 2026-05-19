@@ -20,6 +20,7 @@ function text(lang, ar, en) {
 function emailStatusMessage(lang, user, data) {
   const sent = Boolean(data?.email_copy_sent);
   const queued = Boolean(data?.email_copy_queued);
+  const scheduled = Boolean(data?.email_delivery_scheduled);
   const configured = Boolean(data?.email_delivery_configured);
 
   if (!user?.email) {
@@ -39,6 +40,14 @@ function emailStatusMessage(lang, user, data) {
       lang,
       'تم إرسال الرسالة إلى لوحة الإدارة. نسخة البريد في قائمة الإرسال وستصل بعد تشغيل عامل البريد.',
       'Message sent to the admin dashboard. The email copy is queued and will be delivered when the email worker runs.'
+    );
+  }
+
+  if (scheduled) {
+    return text(
+      lang,
+      'تم إرسال الرسالة إلى لوحة الإدارة. سيتم إرسال النسخة البريدية بالخلفية خلال لحظات.',
+      'Message sent to the admin dashboard. The email copy will be sent in the background shortly.'
     );
   }
 

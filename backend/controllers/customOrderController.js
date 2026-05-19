@@ -197,3 +197,16 @@ exports.update = async (req, res, next) => {
     next(error);
   }
 };
+
+exports.remove = async (req, res, next) => {
+  try {
+    const rows = await db.query('SELECT id FROM custom_orders WHERE id=:id LIMIT 1', { id: req.params.id });
+    if (!rows.length) throw new AppError('Custom order not found', 404, 'CUSTOM_ORDER_NOT_FOUND');
+
+    await db.query('DELETE FROM custom_orders WHERE id=:id', { id: req.params.id });
+    await audit(req, 'delete', 'custom_order', req.params.id);
+    res.json({ message: 'Custom order deleted' });
+  } catch (error) {
+    next(error);
+  }
+};

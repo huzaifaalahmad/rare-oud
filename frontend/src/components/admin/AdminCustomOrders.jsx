@@ -42,6 +42,18 @@ export default function AdminCustomOrders() {
     }
   }
 
+  async function remove(id) {
+    if (!window.confirm(lang === 'ar' ? 'حذف طلب التخصيص؟' : 'Delete custom order?')) return;
+    setState(s => ({ ...s, error: '', message: '' }));
+    try {
+      await api.delete(`/custom-orders/${id}`);
+      setItems(list => list.filter(item => item.id !== id));
+      setState(s => ({ ...s, message: lang === 'ar' ? 'تم حذف الطلب' : 'Custom order deleted' }));
+    } catch (e) {
+      setState(s => ({ ...s, error: e.response?.data?.message || (lang === 'ar' ? 'تعذر حذف الطلب' : 'Unable to delete custom order') }));
+    }
+  }
+
   const canPrev = page.offset > 0;
   const canNext = page.offset + page.limit < page.total;
 
@@ -81,6 +93,7 @@ export default function AdminCustomOrders() {
           <select value={o.status} onChange={e => update(o.id, e.target.value)}>
             {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
+          <button className="icon-btn" type="button" onClick={() => remove(o.id)}>{lang === 'ar' ? 'حذف' : 'Delete'}</button>
         </td>
         <td>{new Date(o.created_at).toLocaleString(lang === 'ar' ? 'ar' : 'en')}</td>
       </tr>)}</tbody>
