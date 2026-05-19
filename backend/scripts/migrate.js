@@ -60,6 +60,13 @@ function splitSqlStatements(sql) {
     .filter(Boolean);
 }
 
+function normalizeBaselineSchema(sql) {
+  return sql
+    .replace(/^\s*CREATE\s+DATABASE\b[\s\S]*?;\s*/gim, '')
+    .replace(/^\s*USE\s+`?[\w-]+`?\s*;\s*/gim, '')
+    .replace(/DELIMITER\s+\$\$[\s\S]*?DELIMITER\s*;/gi, '');
+}
+
 async function tableExists(conn, tableName) {
   const [rows] = await conn.query(
     'SELECT 1 FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? LIMIT 1',
@@ -87,6 +94,23 @@ async function hasFinalBaselineSchema(conn) {
     if (await tableExists(conn, table)) return false;
   }
 
+  return true;
+}
+
+async function ensureBaselineSchema(conn) {
+  const requiredTables = ['users', 'categories', 'products', 'refresh_tokens'];
+  const hasRequiredTables = await Promise.all(requiredTables.map((table) => tableExists(conn, table)));
+  if (hasRequiredTables.every(Boolean)) return false;
+
+  const schemaPath = path.resolve(__dirname, '../../database/schema.sql');
+  const schemaSql = normalizeBaselineSchema(await fs.readFile(schemaPath, 'utf8'));
+  const statements = splitSqlStatements(schemaSql);
+
+  for (const statement of statements) {
+    await executeStatement(conn, statement, 'schema.sql');
+  }
+
+  console.log('applied baseline schema.sql');
   return true;
 }
 
@@ -137,6 +161,7 @@ async function main() {
       throw new Error('Migration lock is held by another process');
     }
 
+    await ensureBaselineSchema(conn);
     await markBaselineMigrationsApplied(conn, files, dir);
 
     for (const file of files) {
