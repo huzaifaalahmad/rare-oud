@@ -51,11 +51,12 @@ async function assertNoEmbeddedPayload(filePath) {
   for (const pattern of SVG_MARKERS) {
     if (pattern.test(textHead)) throw new AppError('SVG/script-like upload payload rejected', 400, 'ACTIVE_CONTENT_REJECTED');
   }
+  const binaryHead = data.subarray(0, 512);
   for (const marker of EXECUTABLE_MARKERS) {
-    const idx = data.indexOf(marker);
+    const idx = binaryHead.indexOf(marker);
     if (idx >= 0) throw new AppError('Executable content marker detected in upload', 400, 'EXECUTABLE_UPLOAD_REJECTED');
   }
-  const zipMarkers = [ZIP_LOCAL_FILE, ZIP_CENTRAL_DIR, ZIP_END].filter(marker => data.indexOf(marker) >= 0).length;
+  const zipMarkers = [ZIP_LOCAL_FILE, ZIP_CENTRAL_DIR, ZIP_END].filter(marker => binaryHead.indexOf(marker) >= 0).length;
   if (zipMarkers > 0) throw new AppError('Archive/polyglot upload rejected', 400, 'ARCHIVE_POLYGLOT_REJECTED');
   const htmlMarkers = ['<html', '<iframe', '<object', '<embed', 'document.cookie'];
   if (htmlMarkers.some(marker => textHead.toLowerCase().includes(marker))) {
