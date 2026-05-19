@@ -77,8 +77,7 @@ CREATE TABLE products (
   INDEX idx_products_price (price),
   INDEX idx_products_stock (stock),
   INDEX idx_products_condition (condition_status),
-  INDEX idx_products_featured_created (is_featured, created_at),
-  FULLTEXT idx_product_search (name_ar, name_en, description_ar, description_en)
+  INDEX idx_products_featured_created (is_featured, created_at)
 ) ENGINE=InnoDB;
 
 CREATE TABLE product_images (

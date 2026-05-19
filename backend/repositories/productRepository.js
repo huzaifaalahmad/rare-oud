@@ -31,11 +31,22 @@ function buildFilters(query = {}) {
 
   const q = typeof query.q === 'string' ? query.q.trim().slice(0, 200) : '';
   if (q) {
-    const terms = q.replace(/[+\-<>()~*"@]/g, ' ').split(/\s+/).filter(Boolean).map(term => `+${term}*`).join(' ');
-    if (terms) {
-      where.push('MATCH(p.name_ar,p.name_en,p.description_ar,p.description_en) AGAINST (:q IN BOOLEAN MODE)');
-      params.q = terms;
-    }
+    const terms = q
+      .replace(/[+\-<>()~*"@]/g, ' ')
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 6);
+
+    terms.forEach((term, index) => {
+      const key = `search${index}`;
+      params[key] = `%${term.replace(/[\%_]/g, '')}%`;
+      where.push(`(
+        p.name_ar LIKE :${key}
+        OR p.name_en LIKE :${key}
+        OR p.description_ar LIKE :${key}
+        OR p.description_en LIKE :${key}
+      )`);
+    });
   }
 
   if (query.min_price !== undefined && query.min_price !== '') {
