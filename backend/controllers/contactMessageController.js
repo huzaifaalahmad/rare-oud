@@ -79,6 +79,14 @@ async function deliverEmail(task, meta) {
   }
 }
 
+function scheduleEmailWork(work, meta) {
+  setImmediate(() => {
+    work().catch(error => {
+      logger.error('Scheduled contact email work failed', { ...meta, error: error.message });
+    });
+  });
+}
+
 async function notifyAdmins(message) {
   const admins = await getAdminUsers();
   const results = await Promise.allSettled(admins.map(admin => createNotification(admin.id, {
@@ -149,30 +157,32 @@ exports.create = async (req, res, next) => {
     }
 
     const emailDeliveryConfigured = isEmailDeliveryConfigured();
-    const adminRecipients = emailDeliveryConfigured ? await getAdminEmailRecipients() : [];
+    const userEmail = req.user?.email || email;
 
-    const adminEmailResults = await Promise.all(adminRecipients.map(recipient => (
-      deliverEmail(
-        sendContactAdminNotificationEmail(recipient, contactMessage),
-        { kind: 'admin-contact-notification', contactMessageId: contactMessage.id, to: recipient }
-      )
-    )));
+    if (emailDeliveryConfigured) {
+      scheduleEmailWork(async () => {
+        const adminRecipients = await getAdminEmailRecipients();
+        await Promise.all(adminRecipients.map(recipient => (
+          deliverEmail(
+            sendContactAdminNotificationEmail(recipient, contactMessage),
+            { kind: 'admin-contact-notification', contactMessageId: contactMessage.id, to: recipient }
+          )
+        )));
 
-    let userEmailResult = { sent: false, queued: false, skipped: !emailDeliveryConfigured };
-    if (req.user?.email && emailDeliveryConfigured) {
-      userEmailResult = await deliverEmail(
-        sendContactMessageConfirmationEmail(req.user.email, contactMessage),
-        { kind: 'user-contact-confirmation', contactMessageId: contactMessage.id, userId: req.user.id }
-      );
+        if (userEmail) {
+          await deliverEmail(
+            sendContactMessageConfirmationEmail(userEmail, contactMessage),
+            { kind: 'user-contact-confirmation', contactMessageId: contactMessage.id, userId: req.user?.id || null }
+          );
+        }
+      }, { contactMessageId: contactMessage.id });
     }
 
     res.status(201).json({
       id: contactMessage.id,
       status: contactMessage.status,
       admin_notifications_created: adminNotifications.created,
-      admin_email_sent_count: adminEmailResults.filter(result => result.sent).length,
-      email_copy_sent: Boolean(userEmailResult.sent),
-      email_copy_queued: Boolean(userEmailResult.queued),
+      email_delivery_scheduled: Boolean(emailDeliveryConfigured),
       email_delivery_configured: emailDeliveryConfigured,
       message: 'Contact message received'
     });
@@ -314,12 +324,13 @@ exports.update = async (req, res, next) => {
       }
     }
 
-    let replyEmailResult = { sent: false, queued: false, skipped: true };
     if (adminReply && updated.account_email && isEmailDeliveryConfigured()) {
-      replyEmailResult = await deliverEmail(
-        sendContactReplyEmail(updated.account_email, updated),
-        { kind: 'contact-reply', contactMessageId: id, userId: updated.user_id }
-      );
+      scheduleEmailWork(async () => {
+        await deliverEmail(
+          sendContactReplyEmail(updated.account_email, updated),
+          { kind: 'contact-reply', contactMessageId: id, userId: updated.user_id }
+        );
+      }, { contactMessageId: id, userId: updated.user_id });
     }
 
     await audit(req, 'update', 'contact_message', id, {
@@ -331,8 +342,7 @@ exports.update = async (req, res, next) => {
       message: 'Contact message updated',
       status: nextStatus,
       notification_created: userNotificationCreated,
-      email_reply_sent: Boolean(replyEmailResult.sent),
-      email_reply_queued: Boolean(replyEmailResult.queued),
+      email_reply_scheduled: Boolean(adminReply && updated.account_email && isEmailDeliveryConfigured()),
       email_delivery_configured: isEmailDeliveryConfigured()
     });
   } catch (error) {
