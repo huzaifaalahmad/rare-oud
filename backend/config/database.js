@@ -3,18 +3,57 @@ require('dotenv').config();
 const logger = require('../utils/logger');
 const metrics = require('../utils/metrics');
 
-const pool = mysql.createPool({
-  host: process.env.DB_HOST,
-  port: process.env.DB_PORT || 3306,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
-  waitForConnections: true,
-  connectionLimit: Number(process.env.DB_POOL_LIMIT || 10),
-  queueLimit: Number(process.env.DB_POOL_QUEUE_LIMIT || 0),
-  namedPlaceholders: true,
-  decimalNumbers: true
-});
+function parseSslOption(value) {
+  const raw = String(value || '').trim();
+  if (!raw || raw === 'false') return undefined;
+  if (raw === 'true') return { rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED !== 'false' };
+
+  try {
+    const parsed = JSON.parse(raw);
+    return typeof parsed === 'object' && parsed !== null
+      ? parsed
+      : { rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED !== 'false' };
+  } catch {
+    return { rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED !== 'false' };
+  }
+}
+
+function configFromDatabaseUrl() {
+  if (!process.env.DATABASE_URL) return {};
+
+  const url = new URL(process.env.DATABASE_URL);
+  const ssl = parseSslOption(url.searchParams.get('ssl'));
+
+  return {
+    host: url.hostname,
+    port: Number(url.port || 3306),
+    user: decodeURIComponent(url.username || ''),
+    password: decodeURIComponent(url.password || ''),
+    database: process.env.DB_NAME || decodeURIComponent(url.pathname.replace(/^\//, '') || ''),
+    ssl
+  };
+}
+
+function buildPoolConfig() {
+  const urlConfig = configFromDatabaseUrl();
+  const ssl = parseSslOption(process.env.DB_SSL);
+
+  return {
+    host: process.env.DB_HOST || urlConfig.host,
+    port: Number(process.env.DB_PORT || urlConfig.port || 3306),
+    user: process.env.DB_USER || urlConfig.user,
+    password: process.env.DB_PASSWORD ?? urlConfig.password,
+    database: process.env.DB_NAME || urlConfig.database,
+    ssl: ssl || urlConfig.ssl,
+    waitForConnections: true,
+    connectionLimit: Number(process.env.DB_POOL_LIMIT || 10),
+    queueLimit: Number(process.env.DB_POOL_QUEUE_LIMIT || 0),
+    namedPlaceholders: true,
+    decimalNumbers: true
+  };
+}
+
+const pool = mysql.createPool(buildPoolConfig());
 
 function queryName(sql) {
   return String(sql || '')

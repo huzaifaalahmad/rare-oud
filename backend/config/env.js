@@ -6,11 +6,14 @@ loadSecrets();
 const schema = Joi.object({
   NODE_ENV: Joi.string().valid('development', 'test', 'production').default('development'),
   PORT: Joi.number().port().default(5000),
-  DB_HOST: Joi.string().required(),
+  DATABASE_URL: Joi.string().allow(''),
+  DB_HOST: Joi.string().allow(''),
   DB_PORT: Joi.number().port().default(3306),
-  DB_NAME: Joi.string().required(),
-  DB_USER: Joi.string().required(),
-  DB_PASSWORD: Joi.string().allow('').when('NODE_ENV', { is: 'production', then: Joi.string().min(16).required() }),
+  DB_NAME: Joi.string().allow(''),
+  DB_USER: Joi.string().allow(''),
+  DB_PASSWORD: Joi.string().allow(''),
+  DB_SSL: Joi.string().allow('').default(''),
+  DB_SSL_REJECT_UNAUTHORIZED: Joi.string().valid('true', 'false').default('true'),
   JWT_SECRET: Joi.string().min(64).required().invalid(Joi.ref('JWT_REFRESH_SECRET')),
   JWT_REFRESH_SECRET: Joi.string().min(64).required(),
   COOKIE_SECURE: Joi.string().valid('true','false').default('false'),
@@ -34,7 +37,11 @@ function validateEnv() {
     const details = error.details.map(d => d.message).join('; ');
     throw new Error(`FATAL_ENV_VALIDATION: ${details}`);
   }
+  if (!value.DATABASE_URL && (!value.DB_HOST || !value.DB_NAME || !value.DB_USER)) {
+    throw new Error('FATAL_ENV_VALIDATION: DATABASE_URL or DB_HOST, DB_NAME, and DB_USER are required');
+  }
   if (value.NODE_ENV === 'production') {
+    if (!value.DATABASE_URL && !value.DB_PASSWORD) throw new Error('FATAL_ENV_VALIDATION: DB_PASSWORD is required in production when DATABASE_URL is not set');
     if (value.COOKIE_SECURE !== 'true') throw new Error('FATAL_ENV_VALIDATION: COOKIE_SECURE must be true in production');
     if (!value.CORS_ORIGINS && !value.FRONTEND_URL) throw new Error('FATAL_ENV_VALIDATION: CORS_ORIGINS or FRONTEND_URL is required in production');
     if (!value.METRICS_TOKEN) throw new Error('FATAL_ENV_VALIDATION: METRICS_TOKEN is required in production');
