@@ -27,6 +27,8 @@ dist/
 build/
 .cache/
 .tmp/
+test-results/
+playwright-report/
 
 # OS / editor
 .DS_Store
