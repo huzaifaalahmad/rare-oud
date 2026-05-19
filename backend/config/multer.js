@@ -18,7 +18,8 @@ fs.mkdirSync(productDir, { recursive: true });
 
 const allowedMime = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const defaultMaxFileSize = 12 * 1024 * 1024;
-const maxFileSize = Number(process.env.UPLOAD_MAX_FILE_SIZE_BYTES || defaultMaxFileSize);
+const configuredMaxFileSize = Number(process.env.UPLOAD_MAX_FILE_SIZE_BYTES || 0);
+const maxFileSize = Math.max(configuredMaxFileSize, defaultMaxFileSize);
 const maxFiles = Number(process.env.UPLOAD_MAX_FILES || 4);
 
 const storage = multer.diskStorage({

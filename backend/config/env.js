@@ -23,7 +23,7 @@ const schema = Joi.object({
   METRICS_TOKEN: Joi.string().min(24).allow(''),
   ENABLE_UPLOAD_AV_SCAN: Joi.string().valid('true','false').default('false'),
   UPLOAD_AV_COMMAND: Joi.string().default('clamscan'),
-  UPLOAD_MAX_FILE_SIZE_BYTES: Joi.number().integer().min(1).max(8 * 1024 * 1024).default(2 * 1024 * 1024),
+  UPLOAD_MAX_FILE_SIZE_BYTES: Joi.number().integer().min(1).max(25 * 1024 * 1024).default(12 * 1024 * 1024),
   REDIS_ENABLED: Joi.string().valid('true','false').default('true'),
   REDIS_URL: Joi.string().allow('').default('redis://127.0.0.1:6379'),
   S3_BUCKET: Joi.string().allow(''),

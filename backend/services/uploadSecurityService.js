@@ -41,7 +41,9 @@ async function readHead(filePath, bytes = 8192) {
 
 async function assertNoEmbeddedPayload(filePath) {
   const stat = await fs.stat(filePath);
-  if (stat.size > Number(process.env.UPLOAD_MAX_FILE_SIZE_BYTES || defaultMaxFileSize)) {
+  const configuredMaxFileSize = Number(process.env.UPLOAD_MAX_FILE_SIZE_BYTES || 0);
+  const maxFileSize = Math.max(configuredMaxFileSize, defaultMaxFileSize);
+  if (stat.size > maxFileSize) {
     throw new AppError('Uploaded file exceeds configured security limit', 413, 'UPLOAD_TOO_LARGE');
   }
   const data = await fs.readFile(filePath);
