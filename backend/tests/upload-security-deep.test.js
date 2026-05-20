@@ -82,6 +82,31 @@ describe('deep upload validation', () => {
     }
   });
 
+  test('does not reject valid image bytes with script-like compressed data', async () => {
+    const payload = Buffer.concat([
+      Buffer.from([0xff, 0xd8, 0xff, 0x00]),
+      Buffer.from('<script>camera-metadata-like-bytes</script>')
+    ]);
+    const { dir, filePath } = writeTempFile(payload);
+    try {
+      await expect(uploadSecurity.validateImageFile({
+        req: { id: 'req-script-like', ip: '127.0.0.1', headers: {} },
+        file: {
+          path: filePath,
+          originalname: 'safe-camera-photo.jpg',
+          filename: 'safe-camera-photo.jpg',
+          mimetype: 'image/jpeg',
+          size: payload.length
+        },
+        allowedMime: new Set(['image/jpeg'])
+      })).resolves.toMatchObject({
+        type: { mime: 'image/jpeg', ext: '.jpg' }
+      });
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   test('rejects mismatched extension and MIME signature', async () => {
     const { dir, filePath } = writeTempFile(Buffer.from([0xff, 0xd8, 0xff, 0x00]), '.gif');
     try {

@@ -39,7 +39,17 @@ async function readHead(filePath, bytes = 8192) {
   }
 }
 
-async function assertNoEmbeddedPayload(filePath) {
+function looksLikeTextPayload(buffer) {
+  const text = buffer
+    .subarray(0, Math.min(buffer.length, 512))
+    .toString('utf8')
+    .replace(/^\uFEFF/, '')
+    .trimStart()
+    .toLowerCase();
+  return text.startsWith('<') || text.startsWith('data:text/');
+}
+
+async function assertNoEmbeddedPayload(filePath, { type } = {}) {
   const stat = await fs.stat(filePath);
   const configuredMaxFileSize = Number(process.env.UPLOAD_MAX_FILE_SIZE_BYTES || 0);
   const maxFileSize = Math.max(configuredMaxFileSize, defaultMaxFileSize);
@@ -47,21 +57,26 @@ async function assertNoEmbeddedPayload(filePath) {
     throw new AppError('Uploaded file exceeds configured security limit', 413, 'UPLOAD_TOO_LARGE');
   }
   const data = await fs.readFile(filePath);
-  const textHead = data.subarray(0, Math.min(data.length, 65536)).toString('utf8');
-  for (const pattern of SVG_MARKERS) {
-    if (pattern.test(textHead)) throw new AppError('SVG/script-like upload payload rejected', 400, 'ACTIVE_CONTENT_REJECTED');
-  }
   const binaryHead = data.subarray(0, 512);
+
+  if (!type || looksLikeTextPayload(binaryHead)) {
+    const textHead = data.subarray(0, Math.min(data.length, 65536)).toString('utf8');
+    for (const pattern of SVG_MARKERS) {
+      if (pattern.test(textHead)) throw new AppError('SVG/script-like upload payload rejected', 400, 'ACTIVE_CONTENT_REJECTED');
+    }
+    const htmlMarkers = ['<html', '<iframe', '<object', '<embed', 'document.cookie'];
+    if (htmlMarkers.some(marker => textHead.toLowerCase().includes(marker))) {
+      throw new AppError('HTML-capable upload payload rejected', 400, 'HTML_PAYLOAD_REJECTED');
+    }
+  }
+
   for (const marker of EXECUTABLE_MARKERS) {
-    const idx = binaryHead.indexOf(marker);
-    if (idx >= 0) throw new AppError('Executable content marker detected in upload', 400, 'EXECUTABLE_UPLOAD_REJECTED');
+    if (binaryHead.indexOf(marker) === 0) {
+      throw new AppError('Executable content marker detected in upload', 400, 'EXECUTABLE_UPLOAD_REJECTED');
+    }
   }
   const zipMarkers = [ZIP_LOCAL_FILE, ZIP_CENTRAL_DIR, ZIP_END].filter(marker => binaryHead.indexOf(marker) >= 0).length;
   if (zipMarkers > 0) throw new AppError('Archive/polyglot upload rejected', 400, 'ARCHIVE_POLYGLOT_REJECTED');
-  const htmlMarkers = ['<html', '<iframe', '<object', '<embed', 'document.cookie'];
-  if (htmlMarkers.some(marker => textHead.toLowerCase().includes(marker))) {
-    throw new AppError('HTML-capable upload payload rejected', 400, 'HTML_PAYLOAD_REJECTED');
-  }
 }
 
 async function scanWithClamAv(filePath) {
@@ -119,7 +134,7 @@ async function validateImageFile({ req, file, allowedMime }) {
     const ext = path.extname(file.originalname || '').toLowerCase();
     if (!['.jpg', '.jpeg', '.png', '.webp'].includes(ext)) throw new AppError('Unsupported file extension', 400, 'INVALID_FILE_EXTENSION');
     if (!type || type.mime !== file.mimetype || !allowedMime.has(type.mime)) throw new AppError('MIME, extension, and magic bytes do not match', 400, 'FILE_SIGNATURE_INVALID');
-    await assertNoEmbeddedPayload(file.path);
+    await assertNoEmbeddedPayload(file.path, { type });
     const metadata = await sharp(file.path, { limitInputPixels: Number(process.env.UPLOAD_MAX_PIXELS || 24000000), animated: false }).metadata();
     if (!metadata.width || !metadata.height) throw new AppError('Image metadata missing dimensions', 400, 'IMAGE_METADATA_INVALID');
     if (metadata.pages && metadata.pages > 1) throw new AppError('Animated/multi-frame images are not allowed', 400, 'ANIMATED_IMAGE_REJECTED');
