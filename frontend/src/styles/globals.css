@@ -1971,6 +1971,31 @@ select:focus {
   flex: 0 0 auto;
 }
 
+.admin-dimensions-panel {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: .85rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--surface) 76%, transparent);
+}
+
+.admin-dimensions-title {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: .2rem;
+}
+
+.admin-dimensions-title strong {
+  color: var(--heading);
+}
+
+.admin-dimensions-panel label {
+  margin: 0;
+}
+
 @media(max-width:640px) {
   .admin-section-heading {
     align-items: stretch;
@@ -1979,5 +2004,9 @@ select:focus {
 
   .admin-section-heading .btn {
     width: 100%;
+  }
+
+  .admin-dimensions-panel {
+    grid-template-columns: 1fr;
   }
 }

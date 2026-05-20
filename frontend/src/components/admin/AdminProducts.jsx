@@ -14,6 +14,15 @@ const empty = {
   historical_geographic_classification_en: '', is_featured: false, is_active: true
 };
 
+const emptyDimensions = {
+  length: '',
+  width: '',
+  height: '',
+  weight: '',
+  sizeUnit: 'cm',
+  weightUnit: 'kg'
+};
+
 const MAX_PRODUCT_IMAGES = 4;
 const MAX_IMAGE_BYTES = 12 * 1024 * 1024;
 const MAX_SOURCE_IMAGE_BYTES = 30 * 1024 * 1024;
@@ -117,10 +126,60 @@ function toForm(product) {
   return out;
 }
 
+function normalizeDimensionValue(value = '') {
+  return String(value).trim().replace(/[^\d.,-]/g, '').replace(',', '.');
+}
+
+function firstDimensionMatch(value, labels) {
+  const source = String(value || '');
+  for (const label of labels) {
+    const match = source.match(new RegExp(`${label}\\s*:?\\s*([\\d.,-]+)`, 'i'));
+    if (match?.[1]) return normalizeDimensionValue(match[1]);
+  }
+  return '';
+}
+
+function parseDimensions(value = '') {
+  const out = { ...emptyDimensions };
+  const source = String(value || '').trim();
+  if (!source) return out;
+
+  const compactMatch = source.match(/([\d.,-]+)\s*(?:x|×)\s*([\d.,-]+)(?:\s*(?:x|×)\s*([\d.,-]+))?/i);
+  if (compactMatch) {
+    out.length = normalizeDimensionValue(compactMatch[1]);
+    out.width = normalizeDimensionValue(compactMatch[2]);
+    out.height = normalizeDimensionValue(compactMatch[3] || '');
+  } else {
+    out.length = firstDimensionMatch(source, ['Length', 'طول', 'الطول']);
+    out.width = firstDimensionMatch(source, ['Width', 'Bowl', 'عرض', 'العرض', 'القصعة']);
+    out.height = firstDimensionMatch(source, ['Height', 'Depth', 'ارتفاع', 'الارتفاع', 'عمق', 'العمق']);
+  }
+
+  out.weight = firstDimensionMatch(source, ['Weight', 'وزن', 'الوزن']);
+  if (/\bmm\b/i.test(source)) out.sizeUnit = 'mm';
+  if (/\bm\b/i.test(source) && !/\bcm\b/i.test(source) && !/\bmm\b/i.test(source)) out.sizeUnit = 'm';
+  if (/\bg\b/i.test(source) && !/\bkg\b/i.test(source)) out.weightUnit = 'g';
+  return out;
+}
+
+function buildDimensions(fields) {
+  const parts = [];
+  const length = normalizeDimensionValue(fields.length);
+  const width = normalizeDimensionValue(fields.width);
+  const height = normalizeDimensionValue(fields.height);
+  const weight = normalizeDimensionValue(fields.weight);
+  if (length) parts.push(`Length ${length} ${fields.sizeUnit}`);
+  if (width) parts.push(`Width ${width} ${fields.sizeUnit}`);
+  if (height) parts.push(`Height ${height} ${fields.sizeUnit}`);
+  if (weight) parts.push(`Weight ${weight} ${fields.weightUnit}`);
+  return parts.join(' / ');
+}
+
 export default function AdminProducts() {
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [form, setForm] = useState(empty);
+  const [dimensionFields, setDimensionFields] = useState(emptyDimensions);
   const [files, setFiles] = useState([]);
   const [media, setMedia] = useState({ audio: '', video: '' });
   const [currentImages, setCurrentImages] = useState([]);
@@ -148,6 +207,11 @@ export default function AdminProducts() {
   function set(k, v) {
     setSuccess('');
     setForm(f => ({ ...f, [k]: v, slug: k === 'name_en' && !f.slug ? slugify(v) : f.slug }));
+  }
+
+  function setDimension(k, v) {
+    setSuccess('');
+    setDimensionFields(fields => ({ ...fields, [k]: v }));
   }
 
   async function handleFileSelection(event) {
@@ -205,6 +269,7 @@ export default function AdminProducts() {
   function payloadFromForm() {
     return {
       ...form,
+      dimensions: buildDimensions(dimensionFields),
       category_id: Number(form.category_id),
       price: Number(form.price),
       stock: Number(form.stock),
@@ -221,6 +286,7 @@ export default function AdminProducts() {
     setMedia({ audio: '', video: '' });
     setCurrentImages([]);
     setForm(toForm(product));
+    setDimensionFields(parseDimensions(product.dimensions));
     try {
       const { data } = await api.get(`/products/${product.slug}`);
       setCurrentImages(data.images || []);
@@ -241,12 +307,14 @@ export default function AdminProducts() {
     setMedia({ audio: '', video: '' });
     setCurrentImages([]);
     setForm(categories[0] ? { ...empty, category_id: categories[0].id } : empty);
+    setDimensionFields(emptyDimensions);
   }
 
   async function refreshSavedProduct(id, slug) {
     const { data } = await api.get(`/products/${slug}`);
     setEditId(id);
     setForm(toForm(data.product || { ...form, id }));
+    setDimensionFields(parseDimensions(data.product?.dimensions || form.dimensions));
     setCurrentImages(data.images || []);
     const audio = (data.media || []).find(m => m.media_type === 'audio')?.drive_url || '';
     const video = (data.media || []).find(m => m.media_type === 'video')?.drive_url || '';
@@ -378,6 +446,18 @@ export default function AdminProducts() {
         <label>{isArabic ? 'السعر' : 'Price'}<input required type="number" min="0" step="0.01" value={form.price} onChange={e => set('price', e.target.value)} /></label>
         <label>{isArabic ? 'المخزون' : 'Stock'}<input required type="number" min="0" value={form.stock} onChange={e => set('stock', e.target.value)} /></label>
         <label>{isArabic ? 'الحالة' : 'Condition'}<select value={form.condition_status} onChange={e => set('condition_status', e.target.value)}><option value="new">{isArabic ? 'جديد' : 'New'}</option><option value="used">{isArabic ? 'مستعمل' : 'Used'}</option></select></label>
+        <div className="admin-dimensions-panel">
+          <div className="admin-dimensions-title">
+            <strong>{isArabic ? 'قياسات المنتج' : 'Product measurements'}</strong>
+            <span className="muted">{isArabic ? 'أدخل القياسات في مربعات منفصلة بدل كتابتها كنص.' : 'Enter each measurement in a dedicated field.'}</span>
+          </div>
+          <label>{isArabic ? 'الطول' : 'Length'}<input inputMode="decimal" placeholder="61" value={dimensionFields.length} onChange={e => setDimension('length', e.target.value)} /></label>
+          <label>{isArabic ? 'العرض' : 'Width'}<input inputMode="decimal" placeholder="36" value={dimensionFields.width} onChange={e => setDimension('width', e.target.value)} /></label>
+          <label>{isArabic ? 'الارتفاع / العمق' : 'Height / depth'}<input inputMode="decimal" placeholder="18" value={dimensionFields.height} onChange={e => setDimension('height', e.target.value)} /></label>
+          <label>{isArabic ? 'وحدة القياس' : 'Size unit'}<select value={dimensionFields.sizeUnit} onChange={e => setDimension('sizeUnit', e.target.value)}><option value="cm">{isArabic ? 'سم' : 'cm'}</option><option value="mm">{isArabic ? 'مم' : 'mm'}</option><option value="m">{isArabic ? 'متر' : 'm'}</option></select></label>
+          <label>{isArabic ? 'الوزن' : 'Weight'}<input inputMode="decimal" placeholder="1.2" value={dimensionFields.weight} onChange={e => setDimension('weight', e.target.value)} /></label>
+          <label>{isArabic ? 'وحدة الوزن' : 'Weight unit'}<select value={dimensionFields.weightUnit} onChange={e => setDimension('weightUnit', e.target.value)}><option value="kg">{isArabic ? 'كغ' : 'kg'}</option><option value="g">{isArabic ? 'غ' : 'g'}</option></select></label>
+        </div>
         <label>{isArabic ? 'الصور (حتى 4 صور)' : 'Images (up to 4)'}<input key={fileInputKey} type="file" accept="image/*" multiple onChange={handleFileSelection} disabled={processingImages || saving || remainingImageSlots === 0} />{processingImages && <span className="muted">{isArabic ? 'جارٍ تجهيز الصور...' : 'Optimizing images...'}</span>}{!processingImages && <span className="muted">{isArabic ? `المتاح الآن: ${remainingImageSlots} من 4` : `Remaining slots: ${remainingImageSlots} of 4`}</span>}{!processingImages && files.length > 0 && <span className="muted">{isArabic ? `${files.length} صورة جاهزة للحفظ` : `${files.length} image(s) ready to save`}</span>}</label>
         {files.length > 0 && <div className="admin-image-picker">
           <strong>{isArabic ? 'الصورة الرئيسية للصور الجديدة' : 'Primary image for new uploads'}</strong>
