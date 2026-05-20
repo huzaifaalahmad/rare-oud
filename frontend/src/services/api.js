@@ -4,7 +4,7 @@ import { getAccessToken, setAccessToken, clearAccessToken, notifyUnauthorized } 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000/api',
   withCredentials: true,
-  timeout: 15000
+  timeout: 30000
 });
 
 // CSRF uses a double-submit cookie. The token is read from the cookie at request time
@@ -15,6 +15,11 @@ function readCookie(name) {
 }
 let csrfToken = readCookie('rare_oud_csrf') || '';
 let refreshPromise = null;
+
+function isUnsafeMethod(config = {}) {
+  const method = (config.method || 'get').toLowerCase();
+  return !['get', 'head', 'options'].includes(method);
+}
 
 function shouldAttemptRefresh(config = {}) {
   if (config.skipAuthRefresh || config._retry) return false;
@@ -34,9 +39,10 @@ function shouldAttemptRefresh(config = {}) {
   return true;
 }
 
-export async function ensureCsrfToken() {
+export async function ensureCsrfToken({ force = false } = {}) {
+  if (force) csrfToken = '';
   if (csrfToken) return csrfToken;
-  const { data } = await api.get('/auth/csrf-token', { skipAuthRefresh: true });
+  const { data } = await api.get('/auth/csrf-token', { skipAuthRefresh: true, skipCsrfRetry: true });
   csrfToken = data.csrfToken || readCookie('rare_oud_csrf');
   return csrfToken;
 }
@@ -46,11 +52,11 @@ export function clearCsrfToken() {
 }
 
 api.interceptors.request.use(async (config) => {
+  config.headers ||= {};
   const token = getAccessToken();
   if (token) config.headers.Authorization = `Bearer ${token}`;
 
-  const method = (config.method || 'get').toLowerCase();
-  if (!['get', 'head', 'options'].includes(method)) {
+  if (isUnsafeMethod(config)) {
     config.headers['X-CSRF-Token'] = await ensureCsrfToken();
   }
   return config;
@@ -75,6 +81,12 @@ api.interceptors.response.use(
     }
     if (error.response?.status === 403 && error.response?.data?.code === 'CSRF_INVALID') {
       clearCsrfToken();
+      if (!original.skipCsrfRetry && !original._csrfRetry && isUnsafeMethod(original)) {
+        original._csrfRetry = true;
+        original.headers ||= {};
+        original.headers['X-CSRF-Token'] = await ensureCsrfToken({ force: true });
+        return api(original);
+      }
     }
     return Promise.reject(error);
   }

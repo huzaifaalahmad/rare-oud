@@ -137,7 +137,7 @@ export default function AdminProducts() {
       if (files.length) {
         const fd = new FormData();
         files.forEach(f => fd.append('images', f));
-        await api.post(`/products/${id}/images`, fd);
+        await api.post(`/products/${id}/images`, fd, { timeout: 120000 });
       }
       if (media.audio) await api.post(`/products/${id}/media`, { media_type: 'audio', title_ar: 'عينة صوت', title_en: 'Audio sample', drive_url: media.audio });
       if (media.video) await api.post(`/products/${id}/media`, { media_type: 'video', title_ar: 'فيديو', title_en: 'Video', drive_url: media.video });
