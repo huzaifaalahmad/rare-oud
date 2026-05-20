@@ -23,7 +23,7 @@ describe('media processing service', () => {
     jest.clearAllMocks();
   });
 
-  test('creates local WebP and AVIF variants when object storage is disabled', async () => {
+  test('creates optimized local WebP variants when object storage is disabled', async () => {
     objectStorage.enabled.mockReturnValue(false);
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rare-oud-media-'));
     const source = path.join(dir, 'source.jpg');
@@ -32,13 +32,13 @@ describe('media processing service', () => {
     try {
       const variants = await createImageVariants(source, 'oud');
 
-      expect(variants).toHaveLength(8);
-      expect(variants[0]).toEqual({ width: 320, format: 'webp', url: '/uploads/products/oud-320.webp', key: null });
-      expect(fs.existsSync(path.join(dir, 'oud-320.webp'))).toBe(true);
-      expect(fs.existsSync(path.join(dir, 'oud-1280.avif'))).toBe(true);
+      expect(variants).toHaveLength(2);
+      expect(variants[0]).toEqual({ width: 640, format: 'webp', url: '/uploads/products/oud-640.webp', key: null });
+      expect(fs.existsSync(path.join(dir, 'oud-640.webp'))).toBe(true);
+      expect(fs.existsSync(path.join(dir, 'oud-1280.webp'))).toBe(true);
       expect(mockSharp).toHaveBeenCalledWith(source);
-      expect(resize).toHaveBeenCalledWith({ width: 320, withoutEnlargement: true });
-      expect(toFormat).toHaveBeenCalledWith('avif', { quality: 50 });
+      expect(resize).toHaveBeenCalledWith({ width: 640, withoutEnlargement: true });
+      expect(toFormat).toHaveBeenCalledWith('webp', { quality: 76 });
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
@@ -53,15 +53,15 @@ describe('media processing service', () => {
 
     const variants = await createImageVariants('source.jpg', 'oud');
 
-    expect(variants).toHaveLength(8);
-    expect(variants[7]).toEqual({
+    expect(variants).toHaveLength(2);
+    expect(variants[1]).toEqual({
       width: 1280,
-      format: 'avif',
-      url: 'https://cdn.example/products/oud-1280.avif',
-      key: 'products/oud-1280.avif'
+      format: 'webp',
+      url: 'https://cdn.example/products/oud-1280.webp',
+      key: 'products/oud-1280.webp'
     });
     expect(objectStorage.uploadImage).toHaveBeenCalledWith(expect.objectContaining({
-      filename: 'oud-320.webp',
+      filename: 'oud-640.webp',
       contentType: 'image/webp'
     }));
   });

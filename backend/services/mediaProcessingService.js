@@ -3,8 +3,25 @@ const path = require('path');
 const fs = require('fs/promises');
 const objectStorage = require('../utils/objectStorage');
 
-const sizes = [320, 640, 960, 1280];
-const formats = ['webp', 'avif'];
+function parseNumberList(value, fallback) {
+  const parsed = String(value || '')
+    .split(',')
+    .map(item => Number(item.trim()))
+    .filter(item => Number.isFinite(item) && item > 0);
+  return parsed.length ? parsed : fallback;
+}
+
+function parseFormatList(value, fallback) {
+  const allowed = new Set(['webp', 'avif']);
+  const parsed = String(value || '')
+    .split(',')
+    .map(item => item.trim().toLowerCase())
+    .filter(item => allowed.has(item));
+  return parsed.length ? parsed : fallback;
+}
+
+const sizes = parseNumberList(process.env.UPLOAD_VARIANT_WIDTHS, [640, 1280]);
+const formats = parseFormatList(process.env.UPLOAD_VARIANT_FORMATS, ['webp']);
 
 async function createImageVariants(sourcePath, basename) {
   const variants = [];

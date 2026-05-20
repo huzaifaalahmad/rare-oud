@@ -239,6 +239,10 @@ export default function AdminProducts() {
     setMedia({ audio, video });
   }
 
+  function apiMessage(err) {
+    return err.response?.data?.message || err.message || (isArabic ? 'حدث خطأ غير متوقع.' : 'Unexpected error.');
+  }
+
   async function save(e) {
     e.preventDefault();
     setError('');
@@ -254,26 +258,49 @@ export default function AdminProducts() {
       } else {
         const { data } = await api.post('/products', payload);
         id = data.id;
+        setEditId(id);
       }
       if (files.length) {
         const fd = new FormData();
         files.forEach(f => fd.append('images', f));
-        await api.post(`/products/${id}/images`, fd, { timeout: 120000 });
+        try {
+          await api.post(`/products/${id}/images`, fd, { timeout: 120000 });
+        } catch (imageError) {
+          await load(editId ? page.offset : 0).catch(() => {});
+          setError(
+            isArabic
+              ? `تم حفظ بيانات المنتج، لكن تعذر رفع الصور: ${apiMessage(imageError)}`
+              : `Product details were saved, but image upload failed: ${apiMessage(imageError)}`
+          );
+          return;
+        }
       }
-      if (media.audio) await api.post(`/products/${id}/media`, { media_type: 'audio', title_ar: 'عينة صوت', title_en: 'Audio sample', drive_url: media.audio });
-      if (media.video) await api.post(`/products/${id}/media`, { media_type: 'video', title_ar: 'فيديو', title_en: 'Video', drive_url: media.video });
-      await load(editId ? page.offset : 0);
-      await refreshSavedProduct(id, savedSlug);
+
+      const warnings = [];
+      if (media.audio) {
+        await api.post(`/products/${id}/media`, { media_type: 'audio', title_ar: 'عينة صوت', title_en: 'Audio sample', drive_url: media.audio })
+          .catch(err => warnings.push(isArabic ? `تعذر حفظ رابط الصوت: ${apiMessage(err)}` : `Audio link was not saved: ${apiMessage(err)}`));
+      }
+      if (media.video) {
+        await api.post(`/products/${id}/media`, { media_type: 'video', title_ar: 'فيديو', title_en: 'Video', drive_url: media.video })
+          .catch(err => warnings.push(isArabic ? `تعذر حفظ رابط الفيديو: ${apiMessage(err)}` : `Video link was not saved: ${apiMessage(err)}`));
+      }
+
+      const refreshed = await refreshSavedProduct(id, savedSlug).then(() => true).catch(() => false);
+      await load(editId ? page.offset : 0).catch(() => {});
       setFiles([]);
       setFileInputKey(v => v + 1);
       setSuccess(
         uploadedCount
-          ? (isArabic ? `تم حفظ المنتج ورفع ${uploadedCount} صورة. الصور المحفوظة ظاهرة بالأسفل الآن.` : `Product saved and ${uploadedCount} image(s) uploaded. Saved images are shown below.`)
+          ? (isArabic
+              ? `تم حفظ المنتج ورفع ${uploadedCount} صورة.${refreshed ? ' الصور المحفوظة ظاهرة بالأسفل الآن.' : ' حدّث الصفحة إذا لم تظهر الصور فورًا.'}`
+              : `Product saved and ${uploadedCount} image(s) uploaded.${refreshed ? ' Saved images are shown below.' : ' Refresh the page if images do not appear immediately.'}`)
           : (isArabic ? 'تم حفظ المنتج وتحديث البيانات بنجاح.' : 'Product saved and refreshed successfully.')
       );
+      if (warnings.length) setError(warnings.join(' '));
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err) {
-      setError(err.response?.data?.message || 'تعذر حفظ المنتج');
+      setError(apiMessage(err) || (isArabic ? 'تعذر حفظ المنتج.' : 'Unable to save product.'));
     } finally {
       setSaving(false);
     }
