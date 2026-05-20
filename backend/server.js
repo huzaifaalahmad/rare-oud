@@ -61,7 +61,16 @@ app.use((req, res, next) => {
 });
 if (process.env.NODE_ENV !== 'production') app.use(morgan('dev'));
 
-app.use('/uploads', uploadLimiter, express.static(path.join(__dirname, 'uploads'), { maxAge: process.env.NODE_ENV === 'production' ? '7d' : 0, immutable: process.env.NODE_ENV === 'production', dotfiles: 'deny', index: false }));
+app.use('/uploads', uploadLimiter, express.static(path.join(__dirname, 'uploads'), {
+  maxAge: process.env.NODE_ENV === 'production' ? '7d' : 0,
+  immutable: process.env.NODE_ENV === 'production',
+  dotfiles: 'deny',
+  index: false,
+  setHeaders(res) {
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.setHeader('Access-Control-Allow-Origin', process.env.FRONTEND_URL || '*');
+  }
+}));
 app.get('/api/metrics', (req, res, next) => {
   const token = process.env.METRICS_TOKEN;
   if (token && req.headers.authorization !== `Bearer ${token}`) return res.status(401).json({ message: 'Unauthorized', code: 'UNAUTHORIZED' });

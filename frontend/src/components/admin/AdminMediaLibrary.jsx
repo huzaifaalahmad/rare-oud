@@ -2,17 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { ExternalLink, Image as ImageIcon } from 'lucide-react';
 import api from '../../services/api.js';
 import { useLanguage } from '../../context/LanguageContext.jsx';
-
-const backendBase = (import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/api\/?$/, '');
+import { mediaUrl } from '../../utils/media.js';
 
 function t(isArabic, ar, en) {
   return isArabic ? ar : en;
-}
-
-function imageSrc(value) {
-  if (!value) return '/logo.svg';
-  if (/^https?:\/\//i.test(value)) return value;
-  return `${backendBase}${value.startsWith('/') ? value : `/${value}`}`;
 }
 
 export default function AdminMediaLibrary() {
@@ -73,7 +66,7 @@ export default function AdminMediaLibrary() {
 
           <div className="media-grid">
             {images.map(img => {
-              const src = imageSrc(img.image_url);
+              const src = mediaUrl(img.image_url);
               return (
                 <article className="card media-card" key={img.id}>
                   <img loading="lazy" decoding="async" src={src} alt={img.alt_en || img.name_en || 'Rare Oud image'} />

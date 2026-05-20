@@ -1878,3 +1878,75 @@ select:focus {
     display: none;
   }
 }
+
+.admin-product-images {
+  padding: 1rem;
+  margin-top: 1rem;
+}
+
+.admin-image-grid,
+.admin-upload-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: .75rem;
+}
+
+.admin-image-card,
+.admin-upload-preview {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  padding: .65rem;
+  display: grid;
+  gap: .5rem;
+}
+
+.admin-image-card.is-primary,
+.admin-upload-preview.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.admin-image-card img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+
+.primary-radio,
+.admin-upload-preview {
+  cursor: pointer;
+  font-size: .9rem;
+}
+
+.admin-upload-preview span {
+  font-weight: 800;
+  color: var(--heading);
+}
+
+.admin-upload-preview small {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.admin-image-picker {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: .65rem;
+}
+
+@media(max-width:860px) {
+  .admin-image-grid,
+  .admin-upload-preview-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media(max-width:520px) {
+  .admin-image-grid,
+  .admin-upload-preview-grid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import api from '../../services/api.js';
 import { useLanguage } from '../../context/LanguageContext.jsx';
+import { mediaUrl } from '../../utils/media.js';
 
 function slugify(v = '') {
   return v.toString().trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9\-]/g, '').replace(/-+/g, '-') || `product-${Date.now()}`;
@@ -129,6 +130,7 @@ export default function AdminProducts() {
   const [saving, setSaving] = useState(false);
   const [processingImages, setProcessingImages] = useState(false);
   const [fileInputKey, setFileInputKey] = useState(0);
+  const [uploadPrimaryIndex, setUploadPrimaryIndex] = useState(0);
   const [page, setPage] = useState({ limit: 50, offset: 0, total: 0 });
   const { lang } = useLanguage();
   const isArabic = lang === 'ar';
@@ -150,11 +152,17 @@ export default function AdminProducts() {
 
   async function handleFileSelection(event) {
     const selected = Array.from(event.target.files || []);
+    const remainingSlots = Math.max(0, MAX_PRODUCT_IMAGES - currentImages.length);
 
-    if (selected.length > MAX_PRODUCT_IMAGES) {
+    if (selected.length > remainingSlots) {
       setFiles([]);
       event.target.value = '';
-      setError(isArabic ? 'يمكنك رفع 4 صور كحد أقصى لكل منتج.' : 'Upload up to 4 images per product.');
+      setUploadPrimaryIndex(0);
+      setError(
+        isArabic
+          ? `يمكنك حفظ 4 صور كحد أقصى لكل منتج. المتاح الآن: ${remainingSlots}.`
+          : `Each product can have up to 4 images. Remaining slots: ${remainingSlots}.`
+      );
       return;
     }
 
@@ -162,6 +170,7 @@ export default function AdminProducts() {
     if (unsupported) {
       setFiles([]);
       event.target.value = '';
+      setUploadPrimaryIndex(0);
       setError(isArabic ? 'الملف المحدد ليس صورة قابلة للرفع.' : 'The selected file is not a supported image.');
       return;
     }
@@ -170,6 +179,7 @@ export default function AdminProducts() {
     if (tooLarge) {
       setFiles([]);
       event.target.value = '';
+      setUploadPrimaryIndex(0);
       setError(isArabic ? 'حجم الصورة كبير جدًا. اختر صورة حتى 30MB وسنضغطها تلقائيًا.' : 'Image is too large. Select an image up to 30MB and it will be optimized automatically.');
       return;
     }
@@ -180,10 +190,12 @@ export default function AdminProducts() {
     try {
       const normalized = await Promise.all(selected.map(normalizeImageFile));
       setFiles(normalized);
+      setUploadPrimaryIndex(currentImages.some(image => image.is_primary) ? -1 : 0);
       setSuccess(isArabic ? 'تم تجهيز الصور للرفع بصيغة آمنة.' : 'Images optimized and ready to upload.');
     } catch {
       setFiles([]);
       event.target.value = '';
+      setUploadPrimaryIndex(0);
       setError(isArabic ? 'تعذر قراءة الصورة. جرّب اختيارها من المعرض الأصلي أو أرسلها كصورة JPG/PNG.' : 'Unable to read this image. Choose it from the original gallery or use a JPG/PNG export.');
     } finally {
       setProcessingImages(false);
@@ -204,6 +216,7 @@ export default function AdminProducts() {
   async function startEdit(product) {
     setEditId(product.id);
     setFiles([]);
+    setUploadPrimaryIndex(0);
     setFileInputKey(v => v + 1);
     setMedia({ audio: '', video: '' });
     setCurrentImages([]);
@@ -223,6 +236,7 @@ export default function AdminProducts() {
   function cancelEdit() {
     setEditId(null);
     setFiles([]);
+    setUploadPrimaryIndex(0);
     setFileInputKey(v => v + 1);
     setMedia({ audio: '', video: '' });
     setCurrentImages([]);
@@ -263,6 +277,9 @@ export default function AdminProducts() {
       if (files.length) {
         const fd = new FormData();
         files.forEach(f => fd.append('images', f));
+        if (uploadPrimaryIndex >= 0 && uploadPrimaryIndex < files.length) {
+          fd.append('primary_index', String(uploadPrimaryIndex));
+        }
         try {
           await api.post(`/products/${id}/images`, fd, { timeout: 120000 });
         } catch (imageError) {
@@ -289,6 +306,7 @@ export default function AdminProducts() {
       const refreshed = await refreshSavedProduct(id, savedSlug).then(() => true).catch(() => false);
       await load(editId ? page.offset : 0).catch(() => {});
       setFiles([]);
+      setUploadPrimaryIndex(0);
       setFileInputKey(v => v + 1);
       setSuccess(
         uploadedCount
@@ -318,9 +336,26 @@ export default function AdminProducts() {
     setError('');
     try {
       await api.delete(`/products/${editId}/images/${imageId}`);
-      setCurrentImages(imgs => imgs.filter(img => img.id !== imageId));
+      await refreshSavedProduct(editId, form.slug).catch(() => {
+        setCurrentImages(imgs => imgs.filter(img => img.id !== imageId));
+      });
+      await load(page.offset).catch(() => {});
     } catch (err) {
       setError(err.response?.data?.message || 'تعذر حذف الصورة');
+    }
+  }
+
+  async function setPrimaryImage(imageId) {
+    if (!editId) return;
+    setError('');
+    setSuccess('');
+    try {
+      await api.put(`/products/${editId}/images/${imageId}/primary`);
+      await refreshSavedProduct(editId, form.slug);
+      await load(page.offset).catch(() => {});
+      setSuccess(isArabic ? 'تم تعيين الصورة الرئيسية.' : 'Primary image updated.');
+    } catch (err) {
+      setError(err.response?.data?.message || (isArabic ? 'تعذر تعيين الصورة الرئيسية' : 'Unable to set primary image'));
     }
   }
 
@@ -328,6 +363,7 @@ export default function AdminProducts() {
   const canNext = page.offset + page.limit < page.total;
   const selectedCategory = categories.find(category => String(category.id) === String(form.category_id));
   const isAccessoryProduct = selectedCategory?.slug === 'accessories';
+  const remainingImageSlots = Math.max(0, MAX_PRODUCT_IMAGES - currentImages.length);
 
   return <div>
     <h2>{editId ? (isArabic ? 'تعديل المنتج' : 'Edit Product') : (isArabic ? 'المنتجات' : 'Products')}</h2>
@@ -342,7 +378,26 @@ export default function AdminProducts() {
         <label>{isArabic ? 'السعر' : 'Price'}<input required type="number" min="0" step="0.01" value={form.price} onChange={e => set('price', e.target.value)} /></label>
         <label>{isArabic ? 'المخزون' : 'Stock'}<input required type="number" min="0" value={form.stock} onChange={e => set('stock', e.target.value)} /></label>
         <label>{isArabic ? 'الحالة' : 'Condition'}<select value={form.condition_status} onChange={e => set('condition_status', e.target.value)}><option value="new">{isArabic ? 'جديد' : 'New'}</option><option value="used">{isArabic ? 'مستعمل' : 'Used'}</option></select></label>
-        <label>{isArabic ? 'الصور (حتى 4 صور)' : 'Images (up to 4)'}<input key={fileInputKey} type="file" accept="image/*" multiple onChange={handleFileSelection} disabled={processingImages || saving} />{processingImages && <span className="muted">{isArabic ? 'جارٍ تجهيز الصور...' : 'Optimizing images...'}</span>}{!processingImages && files.length > 0 && <span className="muted">{isArabic ? `${files.length} صورة جاهزة للحفظ` : `${files.length} image(s) ready to save`}</span>}</label>
+        <label>{isArabic ? 'الصور (حتى 4 صور)' : 'Images (up to 4)'}<input key={fileInputKey} type="file" accept="image/*" multiple onChange={handleFileSelection} disabled={processingImages || saving || remainingImageSlots === 0} />{processingImages && <span className="muted">{isArabic ? 'جارٍ تجهيز الصور...' : 'Optimizing images...'}</span>}{!processingImages && <span className="muted">{isArabic ? `المتاح الآن: ${remainingImageSlots} من 4` : `Remaining slots: ${remainingImageSlots} of 4`}</span>}{!processingImages && files.length > 0 && <span className="muted">{isArabic ? `${files.length} صورة جاهزة للحفظ` : `${files.length} image(s) ready to save`}</span>}</label>
+        {files.length > 0 && <div className="admin-image-picker">
+          <strong>{isArabic ? 'الصورة الرئيسية للصور الجديدة' : 'Primary image for new uploads'}</strong>
+          <div className="admin-upload-preview-grid">
+            {files.map((file, index) => (
+              <label className={`admin-upload-preview ${uploadPrimaryIndex === index ? 'active' : ''}`} key={`${file.name}-${index}`}>
+                <input type="radio" name="upload-primary" checked={uploadPrimaryIndex === index} onChange={() => setUploadPrimaryIndex(index)} />
+                <span>{index + 1}</span>
+                <small>{file.name}</small>
+              </label>
+            ))}
+            {currentImages.some(image => image.is_primary) && (
+              <label className={`admin-upload-preview keep-current ${uploadPrimaryIndex === -1 ? 'active' : ''}`}>
+                <input type="radio" name="upload-primary" checked={uploadPrimaryIndex === -1} onChange={() => setUploadPrimaryIndex(-1)} />
+                <span>{isArabic ? 'الحالية' : 'Current'}</span>
+                <small>{isArabic ? 'الإبقاء على الصورة الرئيسية الحالية' : 'Keep current primary image'}</small>
+              </label>
+            )}
+          </div>
+        </div>}
         <label>{isArabic ? 'رابط الفيديو من Drive' : 'Video Drive URL'}<input value={media.video} onChange={e => setMedia({ ...media, video: e.target.value })} /></label>
         <label>{isArabic ? 'رابط الصوت من Drive' : 'Audio Drive URL'}<input value={media.audio} onChange={e => setMedia({ ...media, audio: e.target.value })} /></label>
         <label>{isArabic ? 'الوصف العربي' : 'Arabic description'}<textarea value={form.description_ar} onChange={e => set('description_ar', e.target.value)} /></label>
@@ -360,7 +415,7 @@ export default function AdminProducts() {
         <label><input type="checkbox" checked={form.is_featured} onChange={e => set('is_featured', e.target.checked)} /> {isArabic ? 'مميز' : 'Featured'}</label>
         <label><input type="checkbox" checked={form.is_active} onChange={e => set('is_active', e.target.checked)} /> {isArabic ? 'مفعل' : 'Active'}</label>
       </div>
-      {editId && currentImages.length > 0 && <div className="card" style={{padding:'1rem',marginTop:'1rem'}}><h3>{isArabic ? 'صور المنتج' : 'Product Images'}</h3><div className="thumb-row">{currentImages.map(img => <div key={img.id} style={{display:'grid',gap:'.5rem'}}><img src={`${(import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace('/api','')}${img.image_url}`} alt={isArabic ? 'صورة المنتج' : 'Product'} loading="lazy" decoding="async"/><button type="button" className="icon-btn" onClick={() => deleteImage(img.id)}>{isArabic ? 'حذف' : 'Delete'}</button></div>)}</div></div>}
+      {editId && currentImages.length > 0 && <div className="card admin-product-images"><h3>{isArabic ? 'صور المنتج' : 'Product Images'}</h3><p className="muted">{isArabic ? 'اختر الصورة الرئيسية التي تظهر في البطاقات وكصورة كبيرة داخل تفاصيل المنتج.' : 'Choose the primary image shown on cards and as the large product-detail image.'}</p><div className="admin-image-grid">{currentImages.map(img => <div className={`admin-image-card ${img.is_primary ? 'is-primary' : ''}`} key={img.id}><img src={mediaUrl(img.image_url)} alt={isArabic ? 'صورة المنتج' : 'Product'} loading="lazy" decoding="async"/><label className="primary-radio"><input type="radio" name="current-primary-image" checked={!!img.is_primary} onChange={() => setPrimaryImage(img.id)} /> {isArabic ? 'صورة رئيسية' : 'Primary image'}</label><button type="button" className="icon-btn" onClick={() => deleteImage(img.id)}>{isArabic ? 'حذف' : 'Delete'}</button></div>)}</div></div>}
       <div className="actions-row"><button className="btn" disabled={saving || processingImages}>{processingImages ? (isArabic ? 'جارٍ تجهيز الصور...' : 'Optimizing images...') : saving ? (isArabic ? 'جارٍ الحفظ...' : 'Saving...') : (editId ? (isArabic ? 'حفظ التعديلات' : 'Save Changes') : (isArabic ? 'إضافة منتج' : 'Add Product'))}</button>{editId && <button type="button" className="btn btn-ghost" onClick={cancelEdit} disabled={saving || processingImages}>{isArabic ? 'إلغاء التعديل' : 'Cancel Edit'}</button>}</div>
     </form>
     <div className="actions-row"><button className="icon-btn" disabled={!canPrev} onClick={() => load(Math.max(page.offset - page.limit, 0))}>{isArabic ? 'السابق' : 'Prev'}</button><span>{page.offset + 1}-{Math.min(page.offset + page.limit, page.total)} / {page.total}</span><button className="icon-btn" disabled={!canNext} onClick={() => load(page.offset + page.limit)}>{isArabic ? 'التالي' : 'Next'}</button></div>

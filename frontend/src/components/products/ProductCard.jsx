@@ -4,13 +4,7 @@ import { useLanguage } from '../../context/LanguageContext.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
 import api from '../../services/api.js';
 import Icon from '../ui/Icon.jsx';
-
-const apiBase = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace('/api', '');
-
-function img(src) {
-  if (!src) return '/logo.svg';
-  return src.startsWith('http') ? src : `${apiBase}${src}`;
-}
+import { mediaUrl } from '../../utils/media.js';
 
 function ProductCard({ product }) {
   const { lang, tr } = useLanguage();
@@ -46,7 +40,7 @@ function ProductCard({ product }) {
         <img
           width="640"
           height="480"
-          src={img(product.primary_image)}
+          src={mediaUrl(product.primary_image)}
           alt={name}
           loading="lazy"
           decoding="async"

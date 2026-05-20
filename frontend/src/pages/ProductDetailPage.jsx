@@ -5,13 +5,7 @@ import api from '../services/api.js';
 import { useLanguage } from '../context/LanguageContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import SEO from '../components/seo/SEO.jsx';
-
-const apiBase = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace('/api', '');
-
-function mediaUrl(path) {
-  if (!path) return '/logo.svg';
-  return path.startsWith('http') ? path : `${apiBase}${path}`;
-}
+import { mediaUrl } from '../utils/media.js';
 
 function cleanDriveUrl(url) {
   if (!url) return '';
