@@ -206,7 +206,12 @@ export default function AdminProducts() {
 
   function set(k, v) {
     setSuccess('');
-    setForm(f => ({ ...f, [k]: v, slug: k === 'name_en' && !f.slug ? slugify(v) : f.slug }));
+    setForm(f => {
+      const next = { ...f, [k]: v };
+      if (k === 'name_en' && !f.slug) next.slug = slugify(v);
+      if (k === 'slug') next.slug = slugify(v);
+      return next;
+    });
   }
 
   function setDimension(k, v) {
@@ -267,8 +272,10 @@ export default function AdminProducts() {
   }
 
   function payloadFromForm() {
+    const normalizedSlug = slugify(form.slug || form.name_en || form.name_ar);
     return {
       ...form,
+      slug: normalizedSlug,
       dimensions: buildDimensions(dimensionFields),
       category_id: Number(form.category_id),
       price: Number(form.price),
@@ -440,7 +447,7 @@ export default function AdminProducts() {
     <form className="card admin-form" onSubmit={save}>
       <div className="admin-grid">
         <label>{isArabic ? 'التصنيف' : 'Category'}<select required value={form.category_id} onChange={e => set('category_id', e.target.value)}>{categories.map(c => <option key={c.id} value={c.id}>{c.name_ar} / {c.name_en}</option>)}</select></label>
-        <label>{isArabic ? 'المعرّف' : 'Slug'}<input required value={form.slug} onChange={e => set('slug', e.target.value)} /></label>
+        <label>{isArabic ? 'المعرّف (اختياري)' : 'Slug (optional)'}<input value={form.slug} placeholder="aleppo-premium-oud" onChange={e => set('slug', e.target.value)} /><span className="muted">{isArabic ? 'اتركه فارغًا وسيتم توليده من الاسم الإنكليزي.' : 'Leave blank to generate it from the English name.'}</span></label>
         <label>{isArabic ? 'الاسم العربي' : 'Arabic name'}<input required value={form.name_ar} onChange={e => set('name_ar', e.target.value)} /></label>
         <label>{isArabic ? 'الاسم الإنجليزي' : 'English name'}<input required value={form.name_en} onChange={e => set('name_en', e.target.value)} /></label>
         <label>{isArabic ? 'السعر' : 'Price'}<input required type="number" min="0" step="0.01" value={form.price} onChange={e => set('price', e.target.value)} /></label>
