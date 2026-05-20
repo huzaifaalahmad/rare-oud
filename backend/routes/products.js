@@ -7,6 +7,7 @@ const { body } = require('express-validator');
 const { upload, persistValidatedImages } = require('../config/multer');
 
 r.get('/', c.listValidate, c.list);
+r.get('/:id/images/:imageId/file', c.getImageFile);
 r.get('/:slug', c.get);
 r.post('/', auth, requirePermission('products.write'), c.validate, c.create);
 r.put('/:id', auth, requirePermission('products.write'), c.validate, c.update);

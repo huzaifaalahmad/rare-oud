@@ -32,8 +32,47 @@ async function cleanupPersistedUploads(files = []) {
     }
   }
 }
-exports.addImages=async(req,res,next)=>{try{const existing=await db.query('SELECT id FROM products WHERE id=:id AND deleted_at IS NULL LIMIT 1',{id:req.params.id}); const files=req.files||[]; if(!existing.length){await cleanupPersistedUploads(files);return res.status(404).json({message:'Product not found',code:'PRODUCT_NOT_FOUND'});} if(!files.length)return res.status(400).json({message:'No images uploaded',code:'NO_IMAGES_UPLOADED'}); const countRows=await db.query('SELECT COUNT(*) total FROM product_images WHERE product_id=:id',{id:req.params.id}); const existingCount=Number(countRows[0]?.total||0); if(existingCount+files.length>MAX_PRODUCT_IMAGES){await cleanupPersistedUploads(files);return res.status(400).json({message:`Each product can have up to ${MAX_PRODUCT_IMAGES} images`,code:'PRODUCT_IMAGE_LIMIT_EXCEEDED',limit:MAX_PRODUCT_IMAGES,existing:existingCount,remaining:Math.max(0,MAX_PRODUCT_IMAGES-existingCount)});} const requestedPrimary=Number(req.body.primary_index); const primaryIndex=Number.isInteger(requestedPrimary)&&requestedPrimary>=0&&requestedPrimary<files.length?requestedPrimary:(existingCount===0?0:-1); await transaction(async(conn)=>{if(primaryIndex>=0)await conn.execute('UPDATE product_images SET is_primary=FALSE WHERE product_id=?',[req.params.id]); for(let i=0;i<files.length;i++){await conn.execute('INSERT INTO product_images (product_id,image_url,storage_key,variants_json,sort_order,is_primary) VALUES (?,?,?,?,?,?)',[req.params.id, files[i].public_url || `/uploads/products/${files[i].filename}`, files[i].storage_key || null, JSON.stringify(files[i].variants || []), existingCount+i, i===primaryIndex]);}}); await audit(req,'upload_images','product',req.params.id,{count:files.length,primary_index:primaryIndex}); productService.invalidateProductCache(); res.status(201).json({files:files.map(f=>f.public_url || `/uploads/products/${f.filename}`)});}catch(e){next(e)}};
+async function readLocalImageBuffer(file) {
+  if (file.public_url || !file.path) return null;
+  const fs = require('fs/promises');
+  return fs.readFile(file.path);
+}
+exports.addImages=async(req,res,next)=>{
+  try{
+    const productId=req.params.id;
+    const existing=await db.query('SELECT id FROM products WHERE id=:id AND deleted_at IS NULL LIMIT 1',{id:productId});
+    const files=req.files||[];
+    if(!existing.length){await cleanupPersistedUploads(files);return res.status(404).json({message:'Product not found',code:'PRODUCT_NOT_FOUND'});}
+    if(!files.length)return res.status(400).json({message:'No images uploaded',code:'NO_IMAGES_UPLOADED'});
+    const countRows=await db.query('SELECT COUNT(*) total FROM product_images WHERE product_id=:id',{id:productId});
+    const existingCount=Number(countRows[0]?.total||0);
+    if(existingCount+files.length>MAX_PRODUCT_IMAGES){await cleanupPersistedUploads(files);return res.status(400).json({message:`Each product can have up to ${MAX_PRODUCT_IMAGES} images`,code:'PRODUCT_IMAGE_LIMIT_EXCEEDED',limit:MAX_PRODUCT_IMAGES,existing:existingCount,remaining:Math.max(0,MAX_PRODUCT_IMAGES-existingCount)});}
+    const requestedPrimary=Number(req.body.primary_index);
+    const primaryIndex=Number.isInteger(requestedPrimary)&&requestedPrimary>=0&&requestedPrimary<files.length?requestedPrimary:(existingCount===0?0:-1);
+    const insertedFiles=[];
+    await transaction(async(conn)=>{
+      if(primaryIndex>=0)await conn.execute('UPDATE product_images SET is_primary=FALSE WHERE product_id=?',[productId]);
+      for(let i=0;i<files.length;i++){
+        const initialUrl=files[i].public_url || `/uploads/products/${files[i].filename}`;
+        const [result]=await conn.execute('INSERT INTO product_images (product_id,image_url,storage_key,variants_json,sort_order,is_primary) VALUES (?,?,?,?,?,?)',[productId,initialUrl,files[i].storage_key||null,JSON.stringify(files[i].variants||[]),existingCount+i,i===primaryIndex]);
+        let imageUrl=initialUrl;
+        if(!files[i].public_url){
+          const imageId=result.insertId;
+          const buffer=await readLocalImageBuffer(files[i]);
+          await conn.execute('INSERT INTO product_image_blobs (image_id,content_type,byte_size,data) VALUES (?,?,?,?)',[imageId,'image/webp',buffer.length,buffer]);
+          imageUrl=`/api/products/${productId}/images/${imageId}/file`;
+          await conn.execute('UPDATE product_images SET image_url=? WHERE id=?',[imageUrl,imageId]);
+        }
+        insertedFiles.push(imageUrl);
+      }
+    });
+    await audit(req,'upload_images','product',productId,{count:files.length,primary_index:primaryIndex});
+    productService.invalidateProductCache();
+    res.status(201).json({files:insertedFiles});
+  }catch(e){next(e)}
+};
 exports.setPrimaryImage=async(req,res,next)=>{try{const rows=await db.query('SELECT id,product_id FROM product_images WHERE id=:imageId AND product_id=:productId LIMIT 1',{imageId:req.params.imageId,productId:req.params.id}); if(!rows.length)return res.status(404).json({message:'Image not found',code:'IMAGE_NOT_FOUND'}); await transaction(async(conn)=>{await conn.execute('UPDATE product_images SET is_primary=FALSE WHERE product_id=?',[req.params.id]); await conn.execute('UPDATE product_images SET is_primary=TRUE WHERE id=? AND product_id=?',[req.params.imageId,req.params.id]);}); await audit(req,'set_primary_image','product',req.params.id,{image_id:req.params.imageId}); productService.invalidateProductCache(); res.json({message:'Primary image updated'});}catch(e){next(e)}};
+exports.getImageFile=async(req,res,next)=>{try{const rows=await db.query(`SELECT b.content_type,b.byte_size,b.data FROM product_image_blobs b JOIN product_images pi ON pi.id=b.image_id JOIN products p ON p.id=pi.product_id WHERE b.image_id=:imageId AND pi.product_id=:productId AND p.deleted_at IS NULL LIMIT 1`,{imageId:req.params.imageId,productId:req.params.id}); if(!rows.length)return res.status(404).json({message:'Image not found',code:'IMAGE_NOT_FOUND'}); const image=rows[0]; res.setHeader('Content-Type',image.content_type||'image/webp'); res.setHeader('Content-Length',String(image.byte_size||image.data.length)); res.setHeader('Cache-Control','public, max-age=31536000, immutable'); res.setHeader('Cross-Origin-Resource-Policy','cross-origin'); res.send(image.data);}catch(e){next(e)}};
 exports.addMedia=async(req,res,next)=>{try{if(fail(req,res))return; const existing=await db.query('SELECT id FROM products WHERE id=:id AND deleted_at IS NULL LIMIT 1',{id:req.params.id}); if(!existing.length)return res.status(404).json({message:'Product not found',code:'PRODUCT_NOT_FOUND'}); const {media_type,title_ar,title_en,drive_url}=req.body; await db.query('DELETE FROM product_media_links WHERE product_id=:product_id AND media_type=:media_type',{product_id:req.params.id,media_type}); const r=await db.query('INSERT INTO product_media_links (product_id,media_type,title_ar,title_en,drive_url) VALUES (:product_id,:media_type,:title_ar,:title_en,:drive_url)',{product_id:req.params.id,media_type,title_ar:title_ar||null,title_en:title_en||null,drive_url}); await audit(req,'upsert_media','product',req.params.id,req.body); productService.invalidateProductCache(); res.status(201).json({id:r.insertId});}catch(e){next(e)}};
 
 exports.deleteImage = async (req, res, next) => {
