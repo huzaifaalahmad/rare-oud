@@ -7,10 +7,6 @@ function sanitizeSlug(v = '') {
   return v.toString().trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').replace(/-+/g, '-').replace(/^-|-$/g, '');
 }
 
-function fallbackSlug(...sources) {
-  return sources.map(sanitizeSlug).find(Boolean) || `product-${Date.now()}`;
-}
-
 const empty = {
   category_id: '', slug: '', sku: '', name_ar: '', name_en: '', description_ar: '', description_en: '', price: '0', stock: '1',
   condition_status: 'new', dimensions: '', woods_ar: '', woods_en: '', included_accessories_ar: '', included_accessories_en: '',
@@ -275,10 +271,9 @@ export default function AdminProducts() {
   }
 
   function payloadFromForm() {
-    const normalizedSlug = sanitizeSlug(form.slug) || fallbackSlug(form.name_en, form.name_ar);
     return {
       ...form,
-      slug: normalizedSlug,
+      slug: sanitizeSlug(form.slug),
       dimensions: buildDimensions(dimensionFields),
       category_id: Number(form.category_id),
       price: Number(form.price),
@@ -343,13 +338,15 @@ export default function AdminProducts() {
     try {
       const payload = payloadFromForm();
       let id = editId;
-      const savedSlug = payload.slug;
+      let savedSlug = payload.slug;
       const uploadedCount = files.length;
       if (editId) {
-        await api.put(`/products/${editId}`, payload);
+        const { data } = await api.put(`/products/${editId}`, payload);
+        savedSlug = data.slug || savedSlug;
       } else {
         const { data } = await api.post('/products', payload);
         id = data.id;
+        savedSlug = data.slug || savedSlug;
         setEditId(id);
       }
       if (files.length) {
@@ -450,7 +447,15 @@ export default function AdminProducts() {
     <form className="card admin-form" onSubmit={save}>
       <div className="admin-grid">
         <label>{isArabic ? 'التصنيف' : 'Category'}<select required value={form.category_id} onChange={e => set('category_id', e.target.value)}>{categories.map(c => <option key={c.id} value={c.id}>{c.name_ar} / {c.name_en}</option>)}</select></label>
-        <label>{isArabic ? 'المعرّف (اختياري)' : 'Slug (optional)'}<input value={form.slug} placeholder="aleppo-premium-oud" onChange={e => set('slug', e.target.value)} /><span className="muted">{isArabic ? 'اتركه فارغًا وسيتم توليده من الاسم الإنكليزي.' : 'Leave blank to generate it from the English name.'}</span></label>
+        <div className="admin-auto-slug-note">
+          <strong>{isArabic ? 'المعرّف' : 'Product link ID'}</strong>
+          <span className="muted">
+            {isArabic
+              ? 'يتم توليده وحمايته تلقائيًا عند الحفظ. لا تحتاج لإدخاله يدويًا.'
+              : 'Generated and protected automatically on save. Manual entry is not required.'}
+          </span>
+          {form.slug && <code>{form.slug}</code>}
+        </div>
         <label>{isArabic ? 'الاسم العربي' : 'Arabic name'}<input required value={form.name_ar} onChange={e => set('name_ar', e.target.value)} /></label>
         <label>{isArabic ? 'الاسم الإنجليزي' : 'English name'}<input required value={form.name_en} onChange={e => set('name_en', e.target.value)} /></label>
         <label>{isArabic ? 'السعر' : 'Price'}<input required type="number" min="0" step="0.01" value={form.price} onChange={e => set('price', e.target.value)} /></label>

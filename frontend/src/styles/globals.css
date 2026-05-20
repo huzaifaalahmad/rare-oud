@@ -1996,6 +1996,31 @@ select:focus {
   margin: 0;
 }
 
+.admin-auto-slug-note {
+  display: grid;
+  gap: .3rem;
+  align-content: center;
+  min-height: 74px;
+  padding: .9rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--surface-2) 65%, transparent);
+}
+
+.admin-auto-slug-note strong {
+  color: var(--heading);
+}
+
+.admin-auto-slug-note code {
+  width: fit-content;
+  max-width: 100%;
+  padding: .25rem .5rem;
+  border-radius: 10px;
+  color: var(--primary-dark);
+  background: var(--surface);
+  overflow-wrap: anywhere;
+}
+
 @media(max-width:640px) {
   .admin-section-heading {
     align-items: stretch;
