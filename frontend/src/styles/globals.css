@@ -1950,3 +1950,34 @@ select:focus {
     grid-template-columns: 1fr;
   }
 }
+
+.admin-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 1.4rem 0 .8rem;
+}
+
+.admin-section-heading h3 {
+  margin: 0;
+}
+
+.admin-section-heading .muted {
+  margin: .25rem 0 0;
+}
+
+.admin-section-heading .btn {
+  flex: 0 0 auto;
+}
+
+@media(max-width:640px) {
+  .admin-section-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .admin-section-heading .btn {
+    width: 100%;
+  }
+}

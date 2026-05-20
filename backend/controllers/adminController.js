@@ -54,6 +54,30 @@ exports.activity = async (req, res, next) => {
   } catch (e) { next(e); }
 };
 
+exports.clearActivity = async (req, res, next) => {
+  try {
+    const [summary] = await db.query('SELECT COUNT(*) total FROM admin_audit_logs');
+    const deletedCount = Number(summary?.total || 0);
+
+    await db.query('DELETE FROM admin_audit_logs');
+    await db.query(
+      `INSERT INTO admin_audit_logs (admin_id,action,entity_type,entity_id,ip_address,user_agent,details)
+       VALUES (:admin_id,:action,:entity_type,:entity_id,:ip,:ua,:details)`,
+      {
+        admin_id: req.user.id,
+        action: 'clear_activity_log',
+        entity_type: 'admin_audit_logs',
+        entity_id: '',
+        ip: req.ip || null,
+        ua: String(req.headers['user-agent'] || '').slice(0, 500),
+        details: JSON.stringify({ deleted_count: deletedCount, request_id: req.id || null })
+      }
+    );
+
+    res.json({ message: 'Activity log cleared', deleted_count: deletedCount });
+  } catch (e) { next(e); }
+};
+
 
 exports.systemHealth = async (_req, res, next) => {
   try {

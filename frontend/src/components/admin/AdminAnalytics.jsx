@@ -5,14 +5,41 @@ import api from '../../services/api.js';
 export default function AdminAnalytics() {
   const [data, setData] = useState(null);
   const [err, setErr] = useState('');
+  const [clearing, setClearing] = useState(false);
   const { lang } = useLanguage();
   const isArabic = lang === 'ar';
 
+  async function loadAnalytics() {
+    const r = await api.get('/admin/analytics');
+    setData(r.data);
+  }
+
   useEffect(() => {
-    api.get('/admin/analytics')
-      .then(r => setData(r.data))
-      .catch(e => setErr(e.response?.data?.message || e.message));
+    loadAnalytics().catch(e => setErr(e.response?.data?.message || e.message));
   }, []);
+
+  async function clearActivityLog() {
+    const activity = data?.activity || [];
+    if (!activity.length || clearing) return;
+
+    const confirmed = window.confirm(
+      isArabic
+        ? 'هل تريد حذف سجل النشاط الحالي؟ سيتم ترك سجل واحد يوضح أن عملية الحذف تمت.'
+        : 'Clear the current activity log? One trace entry will remain to show the deletion.'
+    );
+    if (!confirmed) return;
+
+    setClearing(true);
+    setErr('');
+    try {
+      await api.delete('/admin/activity');
+      await loadAnalytics();
+    } catch (e) {
+      setErr(e.response?.data?.message || e.message);
+    } finally {
+      setClearing(false);
+    }
+  }
 
   if (err) return <div className="error-box">{err}</div>;
   if (!data) {
@@ -62,8 +89,28 @@ export default function AdminAnalytics() {
         </table>
       </div>
 
-      <h3>{isArabic ? 'سجل النشاط' : 'Activity timeline'}</h3>
+      <div className="admin-section-heading">
+        <div>
+          <h3>{isArabic ? 'سجل النشاط' : 'Activity timeline'}</h3>
+          <p className="muted">
+            {isArabic
+              ? 'آخر العمليات الإدارية المحفوظة داخل لوحة التحكم.'
+              : 'Latest administrative actions recorded in the dashboard.'}
+          </p>
+        </div>
+        <button
+          type="button"
+          className="btn danger"
+          onClick={clearActivityLog}
+          disabled={clearing || !(data.activity || []).length}
+        >
+          {clearing ? (isArabic ? 'جاري الحذف...' : 'Clearing...') : (isArabic ? 'حذف سجل النشاط' : 'Clear activity log')}
+        </button>
+      </div>
       <div className="activity-list">
+        {(data.activity || []).length === 0 && (
+          <p className="muted">{isArabic ? 'لا يوجد نشاط مسجل حاليًا.' : 'No activity is currently recorded.'}</p>
+        )}
         {(data.activity || []).map(a => (
           <div className="activity-item" key={a.id}>
             <strong>{a.action}</strong>

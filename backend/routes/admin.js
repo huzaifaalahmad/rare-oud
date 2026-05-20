@@ -7,6 +7,7 @@ const c = require('../controllers/adminController');
 r.use(auth, admin);
 r.get('/analytics', requirePermission('analytics.read'), c.analytics);
 r.get('/activity', requirePermission('audit.read'), c.activity);
+r.delete('/activity', requirePermission('audit.read'), c.clearActivity);
 r.get('/media', requirePermission('media.read'), c.mediaLibrary);
 r.get('/media/upload-audit', requirePermission('audit.read'), c.uploadAudit);
 r.get('/system/health', requirePermission('analytics.read'), c.systemHealth);
