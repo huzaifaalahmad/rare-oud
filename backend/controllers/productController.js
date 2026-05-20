@@ -37,8 +37,24 @@ async function readLocalImageBuffer(file) {
   const fs = require('fs/promises');
   return fs.readFile(file.path);
 }
+let imageBlobTableReady = false;
+async function ensureImageBlobTable() {
+  if (imageBlobTableReady) return;
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS product_image_blobs (
+      image_id BIGINT UNSIGNED PRIMARY KEY,
+      content_type VARCHAR(100) NOT NULL DEFAULT 'image/webp',
+      byte_size INT UNSIGNED NOT NULL,
+      data LONGBLOB NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT fk_image_blobs_image FOREIGN KEY (image_id) REFERENCES product_images(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB
+  `);
+  imageBlobTableReady = true;
+}
 exports.addImages=async(req,res,next)=>{
   try{
+    await ensureImageBlobTable().catch(error => logger.warn('Product image blob table setup failed', { error: error.message }));
     const productId=req.params.id;
     const existing=await db.query('SELECT id FROM products WHERE id=:id AND deleted_at IS NULL LIMIT 1',{id:productId});
     const files=req.files||[];
@@ -59,9 +75,13 @@ exports.addImages=async(req,res,next)=>{
         if(!files[i].public_url){
           const imageId=result.insertId;
           const buffer=await readLocalImageBuffer(files[i]);
-          await conn.execute('INSERT INTO product_image_blobs (image_id,content_type,byte_size,data) VALUES (?,?,?,?)',[imageId,'image/webp',buffer.length,buffer]);
-          imageUrl=`/api/products/${productId}/images/${imageId}/file`;
-          await conn.execute('UPDATE product_images SET image_url=? WHERE id=?',[imageUrl,imageId]);
+          try {
+            await conn.execute('INSERT INTO product_image_blobs (image_id,content_type,byte_size,data) VALUES (?,?,?,?)',[imageId,'image/webp',buffer.length,buffer]);
+            imageUrl=`/api/products/${productId}/images/${imageId}/file`;
+            await conn.execute('UPDATE product_images SET image_url=? WHERE id=?',[imageUrl,imageId]);
+          } catch (blobError) {
+            logger.warn('Persistent image blob insert failed; falling back to local upload URL', { error: blobError.message, productId, imageId });
+          }
         }
         insertedFiles.push(imageUrl);
       }
@@ -72,7 +92,7 @@ exports.addImages=async(req,res,next)=>{
   }catch(e){next(e)}
 };
 exports.setPrimaryImage=async(req,res,next)=>{try{const rows=await db.query('SELECT id,product_id FROM product_images WHERE id=:imageId AND product_id=:productId LIMIT 1',{imageId:req.params.imageId,productId:req.params.id}); if(!rows.length)return res.status(404).json({message:'Image not found',code:'IMAGE_NOT_FOUND'}); await transaction(async(conn)=>{await conn.execute('UPDATE product_images SET is_primary=FALSE WHERE product_id=?',[req.params.id]); await conn.execute('UPDATE product_images SET is_primary=TRUE WHERE id=? AND product_id=?',[req.params.imageId,req.params.id]);}); await audit(req,'set_primary_image','product',req.params.id,{image_id:req.params.imageId}); productService.invalidateProductCache(); res.json({message:'Primary image updated'});}catch(e){next(e)}};
-exports.getImageFile=async(req,res,next)=>{try{const rows=await db.query(`SELECT b.content_type,b.byte_size,b.data FROM product_image_blobs b JOIN product_images pi ON pi.id=b.image_id JOIN products p ON p.id=pi.product_id WHERE b.image_id=:imageId AND pi.product_id=:productId AND p.deleted_at IS NULL LIMIT 1`,{imageId:req.params.imageId,productId:req.params.id}); if(!rows.length)return res.status(404).json({message:'Image not found',code:'IMAGE_NOT_FOUND'}); const image=rows[0]; res.setHeader('Content-Type',image.content_type||'image/webp'); res.setHeader('Content-Length',String(image.byte_size||image.data.length)); res.setHeader('Cache-Control','public, max-age=31536000, immutable'); res.setHeader('Cross-Origin-Resource-Policy','cross-origin'); res.send(image.data);}catch(e){next(e)}};
+exports.getImageFile=async(req,res,next)=>{try{await ensureImageBlobTable(); const rows=await db.query(`SELECT b.content_type,b.byte_size,b.data FROM product_image_blobs b JOIN product_images pi ON pi.id=b.image_id JOIN products p ON p.id=pi.product_id WHERE b.image_id=:imageId AND pi.product_id=:productId AND p.deleted_at IS NULL LIMIT 1`,{imageId:req.params.imageId,productId:req.params.id}); if(!rows.length)return res.status(404).json({message:'Image not found',code:'IMAGE_NOT_FOUND'}); const image=rows[0]; res.setHeader('Content-Type',image.content_type||'image/webp'); res.setHeader('Content-Length',String(image.byte_size||image.data.length)); res.setHeader('Cache-Control','public, max-age=31536000, immutable'); res.setHeader('Cross-Origin-Resource-Policy','cross-origin'); res.send(image.data);}catch(e){next(e)}};
 exports.addMedia=async(req,res,next)=>{try{if(fail(req,res))return; const existing=await db.query('SELECT id FROM products WHERE id=:id AND deleted_at IS NULL LIMIT 1',{id:req.params.id}); if(!existing.length)return res.status(404).json({message:'Product not found',code:'PRODUCT_NOT_FOUND'}); const {media_type,title_ar,title_en,drive_url}=req.body; await db.query('DELETE FROM product_media_links WHERE product_id=:product_id AND media_type=:media_type',{product_id:req.params.id,media_type}); const r=await db.query('INSERT INTO product_media_links (product_id,media_type,title_ar,title_en,drive_url) VALUES (:product_id,:media_type,:title_ar,:title_en,:drive_url)',{product_id:req.params.id,media_type,title_ar:title_ar||null,title_en:title_en||null,drive_url}); await audit(req,'upsert_media','product',req.params.id,req.body); productService.invalidateProductCache(); res.status(201).json({id:r.insertId});}catch(e){next(e)}};
 
 exports.deleteImage = async (req, res, next) => {
