@@ -53,10 +53,21 @@ async function persistOne(file) {
   const finalPath = path.join(productDir, filename);
   let storageResult = null;
   const sanitizedPath = path.join(tmpDir, `${basename}.webp`);
-  await sharp(file.path, { limitInputPixels: Number(process.env.UPLOAD_MAX_PIXELS || 24000000), animated: false })
-    .rotate()
-    .webp({ quality: Number(process.env.UPLOAD_WEBP_QUALITY || 82), effort: 4 })
-    .toFile(sanitizedPath);
+  try {
+    await sharp(file.path, {
+      limitInputPixels: Number(process.env.UPLOAD_MAX_PIXELS || 24000000),
+      animated: false,
+      failOn: 'none'
+    })
+      .rotate()
+      .toColorspace('srgb')
+      .webp({ quality: Number(process.env.UPLOAD_WEBP_QUALITY || 82), effort: 4 })
+      .toFile(sanitizedPath);
+  } catch (error) {
+    await fsp.unlink(sanitizedPath).catch(() => {});
+    logger.warn('Image processing failed', { error: error.message, mimetype: file.mimetype, size: file.size });
+    throw new AppError('Image could not be processed. Re-export it as JPG, PNG, or WebP and try again.', 400, 'IMAGE_PROCESSING_FAILED');
+  }
   let sourceForVariants = sanitizedPath;
   if (objectStorage.enabled()) {
     storageResult = await objectStorage.uploadImage({ stream: fs.createReadStream(sanitizedPath), filename, contentType: 'image/webp' });

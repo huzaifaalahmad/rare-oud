@@ -126,6 +126,30 @@ describe('deep upload validation', () => {
     }
   });
 
+  test('reports undecodable image payloads as client errors', async () => {
+    const sharp = require('sharp');
+    sharp.mockImplementationOnce(() => ({
+      metadata: jest.fn().mockRejectedValue(new Error('decode failed'))
+    }));
+    const payload = Buffer.from([0xff, 0xd8, 0xff, 0x00, 0x11]);
+    const { dir, filePath } = writeTempFile(payload);
+    try {
+      await expect(uploadSecurity.validateImageFile({
+        req: { id: 'req-decode', ip: '127.0.0.1', headers: {} },
+        file: {
+          path: filePath,
+          originalname: 'broken.jpg',
+          filename: 'broken.jpg',
+          mimetype: 'image/jpeg',
+          size: payload.length
+        },
+        allowedMime: new Set(['image/jpeg'])
+      })).rejects.toMatchObject({ code: 'IMAGE_DECODE_FAILED', status: 400 });
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   test('malware scanner is explicitly skipped unless enabled', async () => {
     const previous = process.env.ENABLE_UPLOAD_AV_SCAN;
     process.env.ENABLE_UPLOAD_AV_SCAN = 'false';

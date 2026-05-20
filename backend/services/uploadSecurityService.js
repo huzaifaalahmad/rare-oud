@@ -135,7 +135,16 @@ async function validateImageFile({ req, file, allowedMime }) {
     if (!['.jpg', '.jpeg', '.png', '.webp'].includes(ext)) throw new AppError('Unsupported file extension', 400, 'INVALID_FILE_EXTENSION');
     if (!type || type.mime !== file.mimetype || !allowedMime.has(type.mime)) throw new AppError('MIME, extension, and magic bytes do not match', 400, 'FILE_SIGNATURE_INVALID');
     await assertNoEmbeddedPayload(file.path, { type });
-    const metadata = await sharp(file.path, { limitInputPixels: Number(process.env.UPLOAD_MAX_PIXELS || 24000000), animated: false }).metadata();
+    let metadata;
+    try {
+      metadata = await sharp(file.path, {
+        limitInputPixels: Number(process.env.UPLOAD_MAX_PIXELS || 24000000),
+        animated: false,
+        failOn: 'none'
+      }).metadata();
+    } catch {
+      throw new AppError('Image could not be decoded. Upload a valid JPG, PNG, or WebP image.', 400, 'IMAGE_DECODE_FAILED');
+    }
     if (!metadata.width || !metadata.height) throw new AppError('Image metadata missing dimensions', 400, 'IMAGE_METADATA_INVALID');
     if (metadata.pages && metadata.pages > 1) throw new AppError('Animated/multi-frame images are not allowed', 400, 'ANIMATED_IMAGE_REJECTED');
     if (metadata.width * metadata.height > Number(process.env.UPLOAD_MAX_PIXELS || 24000000)) throw new AppError('Image dimensions exceed safety limits', 400, 'IMAGE_TOO_LARGE');
