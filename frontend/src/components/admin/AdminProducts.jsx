@@ -3,8 +3,12 @@ import api from '../../services/api.js';
 import { useLanguage } from '../../context/LanguageContext.jsx';
 import { mediaUrl } from '../../utils/media.js';
 
-function slugify(v = '') {
-  return v.toString().trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9\-]/g, '').replace(/-+/g, '-') || `product-${Date.now()}`;
+function sanitizeSlug(v = '') {
+  return v.toString().trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').replace(/-+/g, '-').replace(/^-|-$/g, '');
+}
+
+function fallbackSlug(...sources) {
+  return sources.map(sanitizeSlug).find(Boolean) || `product-${Date.now()}`;
 }
 
 const empty = {
@@ -208,8 +212,7 @@ export default function AdminProducts() {
     setSuccess('');
     setForm(f => {
       const next = { ...f, [k]: v };
-      if (k === 'name_en' && !f.slug) next.slug = slugify(v);
-      if (k === 'slug') next.slug = slugify(v);
+      if (k === 'slug') next.slug = sanitizeSlug(v);
       return next;
     });
   }
@@ -272,7 +275,7 @@ export default function AdminProducts() {
   }
 
   function payloadFromForm() {
-    const normalizedSlug = slugify(form.slug || form.name_en || form.name_ar);
+    const normalizedSlug = sanitizeSlug(form.slug) || fallbackSlug(form.name_en, form.name_ar);
     return {
       ...form,
       slug: normalizedSlug,
