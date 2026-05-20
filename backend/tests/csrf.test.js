@@ -14,35 +14,37 @@ describe('csrf middleware', () => {
     process.env.COOKIE_SECURE = originalCookieSecure;
   });
 
-  test('issues a reusable double-submit csrf token cookie', () => {
+  test('issues a signed csrf token cookie and response payload', () => {
     process.env.COOKIE_SECURE = 'false';
-    const req = { cookies: { rare_oud_csrf: 'existing-token' } };
+    const req = { cookies: {} };
     const res = responseMock();
 
     issueCsrfToken(req, res);
+    const token = res.json.mock.calls[0][0].csrfToken;
 
     expect(res.cookie).toHaveBeenCalledWith(
       'rare_oud_csrf',
-      'existing-token',
+      token,
       expect.objectContaining({
         httpOnly: false,
         sameSite: 'lax',
         path: '/'
       })
     );
-    expect(res.json).toHaveBeenCalledWith({ csrfToken: 'existing-token' });
+    expect(token.split('.')).toHaveLength(3);
   });
 
   test('uses cross-site secure cookies for production deployments', () => {
     process.env.COOKIE_SECURE = 'true';
-    const req = { cookies: { rare_oud_csrf: 'existing-token' } };
+    const req = { cookies: {} };
     const res = responseMock();
 
     issueCsrfToken(req, res);
+    const token = res.json.mock.calls[0][0].csrfToken;
 
     expect(res.cookie).toHaveBeenCalledWith(
       'rare_oud_csrf',
-      'existing-token',
+      token,
       expect.objectContaining({
         sameSite: 'none',
         secure: true
@@ -62,6 +64,21 @@ describe('csrf middleware', () => {
       get: (name) => (name === 'x-csrf-token' ? 'token-123' : undefined)
     }, {}, postNext);
     expect(postNext).toHaveBeenCalledWith();
+  });
+
+  test('allows signed csrf header when third-party cookies are unavailable', () => {
+    const res = responseMock();
+    issueCsrfToken({ cookies: {} }, res);
+    const token = res.json.mock.calls[0][0].csrfToken;
+
+    const next = jest.fn();
+    csrfProtection({
+      method: 'POST',
+      cookies: {},
+      get: (name) => (name === 'x-csrf-token' ? token : undefined)
+    }, {}, next);
+
+    expect(next).toHaveBeenCalledWith();
   });
 
   test('rejects missing or mismatched csrf tokens', () => {
