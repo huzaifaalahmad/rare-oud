@@ -769,6 +769,20 @@ html[dir='rtl'] .admin-kicker {
 @keyframes rareOudFloat { from { transform: translate3d(0,0,0) scale(1); } to { transform: translate3d(0,-1.5%,0) scale(1.03); } }
 @media (prefers-reduced-motion: reduce), (max-width: 640px) { .hero-backdrop { animation: none; opacity: .32; } .reveal-up, .stagger { animation: none !important; transform: none !important; } }
 
+.password-rules {
+  display: grid;
+  gap: .35rem;
+  margin: -.35rem 0 1rem;
+  padding: 0;
+  list-style: none;
+  color: var(--muted);
+  font-size: .92rem;
+}
+
+.password-rules li.ok {
+  color: var(--success);
+}
+
 /* Enterprise adaptive rendering safeguards */
 .hero-backdrop[data-render-mode="paused"]{display:none}
 .hero-backdrop[data-postprocess="off"]{filter:none;mix-blend-mode:normal}

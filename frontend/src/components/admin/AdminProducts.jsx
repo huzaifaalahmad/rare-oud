@@ -37,6 +37,9 @@ export default function AdminProducts() {
   const [currentImages, setCurrentImages] = useState([]);
   const [editId, setEditId] = useState(null);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [fileInputKey, setFileInputKey] = useState(0);
   const [page, setPage] = useState({ limit: 50, offset: 0, total: 0 });
   const { lang } = useLanguage();
   const isArabic = lang === 'ar';
@@ -52,6 +55,7 @@ export default function AdminProducts() {
   useEffect(() => { load(0).catch(() => setError('تعذر تحميل بيانات المنتجات')); }, []);
 
   function set(k, v) {
+    setSuccess('');
     setForm(f => ({ ...f, [k]: v, slug: k === 'name_en' && !f.slug ? slugify(v) : f.slug }));
   }
 
@@ -82,6 +86,7 @@ export default function AdminProducts() {
     }
 
     setError('');
+    setSuccess('');
     setFiles(selected);
   }
 
@@ -99,6 +104,7 @@ export default function AdminProducts() {
   async function startEdit(product) {
     setEditId(product.id);
     setFiles([]);
+    setFileInputKey(v => v + 1);
     setMedia({ audio: '', video: '' });
     setCurrentImages([]);
     setForm(toForm(product));
@@ -117,17 +123,32 @@ export default function AdminProducts() {
   function cancelEdit() {
     setEditId(null);
     setFiles([]);
+    setFileInputKey(v => v + 1);
     setMedia({ audio: '', video: '' });
     setCurrentImages([]);
     setForm(categories[0] ? { ...empty, category_id: categories[0].id } : empty);
   }
 
+  async function refreshSavedProduct(id, slug) {
+    const { data } = await api.get(`/products/${slug}`);
+    setEditId(id);
+    setForm(toForm(data.product || { ...form, id }));
+    setCurrentImages(data.images || []);
+    const audio = (data.media || []).find(m => m.media_type === 'audio')?.drive_url || '';
+    const video = (data.media || []).find(m => m.media_type === 'video')?.drive_url || '';
+    setMedia({ audio, video });
+  }
+
   async function save(e) {
     e.preventDefault();
     setError('');
+    setSuccess('');
+    setSaving(true);
     try {
       const payload = payloadFromForm();
       let id = editId;
+      const savedSlug = payload.slug;
+      const uploadedCount = files.length;
       if (editId) {
         await api.put(`/products/${editId}`, payload);
       } else {
@@ -141,10 +162,20 @@ export default function AdminProducts() {
       }
       if (media.audio) await api.post(`/products/${id}/media`, { media_type: 'audio', title_ar: 'عينة صوت', title_en: 'Audio sample', drive_url: media.audio });
       if (media.video) await api.post(`/products/${id}/media`, { media_type: 'video', title_ar: 'فيديو', title_en: 'Video', drive_url: media.video });
-      cancelEdit();
       await load(editId ? page.offset : 0);
+      await refreshSavedProduct(id, savedSlug);
+      setFiles([]);
+      setFileInputKey(v => v + 1);
+      setSuccess(
+        uploadedCount
+          ? (isArabic ? `تم حفظ المنتج ورفع ${uploadedCount} صورة. الصور المحفوظة ظاهرة بالأسفل الآن.` : `Product saved and ${uploadedCount} image(s) uploaded. Saved images are shown below.`)
+          : (isArabic ? 'تم حفظ المنتج وتحديث البيانات بنجاح.' : 'Product saved and refreshed successfully.')
+      );
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err) {
       setError(err.response?.data?.message || 'تعذر حفظ المنتج');
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -174,6 +205,7 @@ export default function AdminProducts() {
   return <div>
     <h2>{editId ? (isArabic ? 'تعديل المنتج' : 'Edit Product') : (isArabic ? 'المنتجات' : 'Products')}</h2>
     {error && <p className="error-box">{error}</p>}
+    {success && <p className="success-box">{success}</p>}
     <form className="card admin-form" onSubmit={save}>
       <div className="admin-grid">
         <label>{isArabic ? 'التصنيف' : 'Category'}<select required value={form.category_id} onChange={e => set('category_id', e.target.value)}>{categories.map(c => <option key={c.id} value={c.id}>{c.name_ar} / {c.name_en}</option>)}</select></label>
@@ -183,7 +215,7 @@ export default function AdminProducts() {
         <label>{isArabic ? 'السعر' : 'Price'}<input required type="number" min="0" step="0.01" value={form.price} onChange={e => set('price', e.target.value)} /></label>
         <label>{isArabic ? 'المخزون' : 'Stock'}<input required type="number" min="0" value={form.stock} onChange={e => set('stock', e.target.value)} /></label>
         <label>{isArabic ? 'الحالة' : 'Condition'}<select value={form.condition_status} onChange={e => set('condition_status', e.target.value)}><option value="new">{isArabic ? 'جديد' : 'New'}</option><option value="used">{isArabic ? 'مستعمل' : 'Used'}</option></select></label>
-        <label>{isArabic ? 'الصور (حتى 4 صور)' : 'Images (up to 4)'}<input type="file" accept="image/png,image/jpeg,image/webp" multiple onChange={handleFileSelection} /></label>
+        <label>{isArabic ? 'الصور (حتى 4 صور)' : 'Images (up to 4)'}<input key={fileInputKey} type="file" accept="image/png,image/jpeg,image/webp" multiple onChange={handleFileSelection} />{files.length > 0 && <span className="muted">{isArabic ? `${files.length} صورة جاهزة للحفظ` : `${files.length} image(s) ready to save`}</span>}</label>
         <label>{isArabic ? 'رابط الفيديو من Drive' : 'Video Drive URL'}<input value={media.video} onChange={e => setMedia({ ...media, video: e.target.value })} /></label>
         <label>{isArabic ? 'رابط الصوت من Drive' : 'Audio Drive URL'}<input value={media.audio} onChange={e => setMedia({ ...media, audio: e.target.value })} /></label>
         <label>{isArabic ? 'الوصف العربي' : 'Arabic description'}<textarea value={form.description_ar} onChange={e => set('description_ar', e.target.value)} /></label>
@@ -202,7 +234,7 @@ export default function AdminProducts() {
         <label><input type="checkbox" checked={form.is_active} onChange={e => set('is_active', e.target.checked)} /> {isArabic ? 'مفعل' : 'Active'}</label>
       </div>
       {editId && currentImages.length > 0 && <div className="card" style={{padding:'1rem',marginTop:'1rem'}}><h3>{isArabic ? 'صور المنتج' : 'Product Images'}</h3><div className="thumb-row">{currentImages.map(img => <div key={img.id} style={{display:'grid',gap:'.5rem'}}><img src={`${(import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace('/api','')}${img.image_url}`} alt={isArabic ? 'صورة المنتج' : 'Product'} loading="lazy" decoding="async"/><button type="button" className="icon-btn" onClick={() => deleteImage(img.id)}>{isArabic ? 'حذف' : 'Delete'}</button></div>)}</div></div>}
-      <div className="actions-row"><button className="btn">{editId ? (isArabic ? 'حفظ التعديلات' : 'Save Changes') : (isArabic ? 'إضافة منتج' : 'Add Product')}</button>{editId && <button type="button" className="btn btn-ghost" onClick={cancelEdit}>{isArabic ? 'إلغاء التعديل' : 'Cancel Edit'}</button>}</div>
+      <div className="actions-row"><button className="btn" disabled={saving}>{saving ? (isArabic ? 'جارٍ الحفظ...' : 'Saving...') : (editId ? (isArabic ? 'حفظ التعديلات' : 'Save Changes') : (isArabic ? 'إضافة منتج' : 'Add Product'))}</button>{editId && <button type="button" className="btn btn-ghost" onClick={cancelEdit} disabled={saving}>{isArabic ? 'إلغاء التعديل' : 'Cancel Edit'}</button>}</div>
     </form>
     <div className="actions-row"><button className="icon-btn" disabled={!canPrev} onClick={() => load(Math.max(page.offset - page.limit, 0))}>{isArabic ? 'السابق' : 'Prev'}</button><span>{page.offset + 1}-{Math.min(page.offset + page.limit, page.total)} / {page.total}</span><button className="icon-btn" disabled={!canNext} onClick={() => load(page.offset + page.limit)}>{isArabic ? 'التالي' : 'Next'}</button></div>
     <table className="table"><thead><tr><th>{isArabic ? 'الاسم' : 'Name'}</th><th>{isArabic ? 'السعر' : 'Price'}</th><th>{isArabic ? 'المخزون' : 'Stock'}</th><th>{isArabic ? 'مفعل' : 'Active'}</th><th></th></tr></thead><tbody>{products.map(p => <tr key={p.id}><td>{p.name_ar || p.name_en}</td><td>${p.price}</td><td>{p.stock}</td><td>{p.is_active ? (isArabic ? 'نعم' : 'Yes') : (isArabic ? 'لا' : 'No')}</td><td><button className="icon-btn" onClick={() => startEdit(p)}>{isArabic ? 'تعديل' : 'Edit'}</button> <button className="icon-btn" onClick={() => remove(p.id)}>{isArabic ? 'حذف' : 'Delete'}</button></td></tr>)}</tbody></table>
