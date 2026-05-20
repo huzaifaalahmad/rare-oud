@@ -15,7 +15,95 @@ const empty = {
 
 const MAX_PRODUCT_IMAGES = 4;
 const MAX_IMAGE_BYTES = 12 * 1024 * 1024;
+const MAX_SOURCE_IMAGE_BYTES = 30 * 1024 * 1024;
+const NORMALIZED_MAX_EDGE = 2200;
 const ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+
+function fileBaseName(name = 'product-image') {
+  return String(name).replace(/\.[^.]+$/, '').replace(/[^a-z0-9_-]+/gi, '-').replace(/^-+|-+$/g, '') || 'product-image';
+}
+
+function canvasToBlob(canvas, quality) {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(blob => {
+      if (blob) resolve(blob);
+      else reject(new Error('Image normalization failed'));
+    }, 'image/jpeg', quality);
+  });
+}
+
+async function decodeImage(file) {
+  if ('createImageBitmap' in window) {
+    try {
+      const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+      return {
+        width: bitmap.width,
+        height: bitmap.height,
+        draw: (ctx, width, height) => {
+          ctx.drawImage(bitmap, 0, 0, width, height);
+          bitmap.close?.();
+        }
+      };
+    } catch {}
+  }
+
+  const url = URL.createObjectURL(file);
+  try {
+    const image = await new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error('Image could not be read by the browser'));
+      img.src = url;
+    });
+    return {
+      width: image.naturalWidth,
+      height: image.naturalHeight,
+      draw: (ctx, width, height) => ctx.drawImage(image, 0, 0, width, height)
+    };
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+async function normalizeImageFile(file) {
+  const hasImageMime = file.type.startsWith('image/');
+  const hasImageExtension = /\.(jpe?g|png|webp|heic|heif|avif)$/i.test(file.name || '');
+  if (!hasImageMime && !hasImageExtension) {
+    throw new Error('Unsupported image type');
+  }
+  if (file.size > MAX_SOURCE_IMAGE_BYTES) {
+    throw new Error('Source image is too large');
+  }
+
+  const decoded = await decodeImage(file);
+  if (!decoded.width || !decoded.height) {
+    throw new Error('Image has invalid dimensions');
+  }
+
+  const scale = Math.min(1, NORMALIZED_MAX_EDGE / Math.max(decoded.width, decoded.height));
+  const width = Math.max(1, Math.round(decoded.width * scale));
+  const height = Math.max(1, Math.round(decoded.height * scale));
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d', { alpha: false });
+  if (!ctx) throw new Error('Image processing is unavailable');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, width, height);
+  decoded.draw(ctx, width, height);
+
+  let blob = await canvasToBlob(canvas, 0.88);
+  if (blob.size > MAX_IMAGE_BYTES) blob = await canvasToBlob(canvas, 0.78);
+  if (blob.size > MAX_IMAGE_BYTES) blob = await canvasToBlob(canvas, 0.68);
+  if (blob.size > MAX_IMAGE_BYTES) {
+    throw new Error('Normalized image is too large');
+  }
+
+  return new File([blob], `${fileBaseName(file.name)}.jpg`, {
+    type: 'image/jpeg',
+    lastModified: Date.now()
+  });
+}
 
 function toForm(product) {
   const out = { ...empty };
@@ -39,6 +127,7 @@ export default function AdminProducts() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [saving, setSaving] = useState(false);
+  const [processingImages, setProcessingImages] = useState(false);
   const [fileInputKey, setFileInputKey] = useState(0);
   const [page, setPage] = useState({ limit: 50, offset: 0, total: 0 });
   const { lang } = useLanguage();
@@ -59,7 +148,7 @@ export default function AdminProducts() {
     setForm(f => ({ ...f, [k]: v, slug: k === 'name_en' && !f.slug ? slugify(v) : f.slug }));
   }
 
-  function handleFileSelection(event) {
+  async function handleFileSelection(event) {
     const selected = Array.from(event.target.files || []);
 
     if (selected.length > MAX_PRODUCT_IMAGES) {
@@ -69,25 +158,36 @@ export default function AdminProducts() {
       return;
     }
 
-    const unsupported = selected.find(file => !ALLOWED_IMAGE_TYPES.has(file.type));
+    const unsupported = selected.find(file => file.type && !ALLOWED_IMAGE_TYPES.has(file.type) && !file.type.startsWith('image/'));
     if (unsupported) {
       setFiles([]);
       event.target.value = '';
-      setError(isArabic ? 'الصور المسموحة فقط: JPG أو PNG أو WebP.' : 'Allowed images only: JPG, PNG, or WebP.');
+      setError(isArabic ? 'الملف المحدد ليس صورة قابلة للرفع.' : 'The selected file is not a supported image.');
       return;
     }
 
-    const tooLarge = selected.find(file => file.size > MAX_IMAGE_BYTES);
+    const tooLarge = selected.find(file => file.size > MAX_SOURCE_IMAGE_BYTES);
     if (tooLarge) {
       setFiles([]);
       event.target.value = '';
-      setError(isArabic ? 'حجم كل صورة يجب ألا يتجاوز 12MB.' : 'Each image must be 12MB or smaller.');
+      setError(isArabic ? 'حجم الصورة كبير جدًا. اختر صورة حتى 30MB وسنضغطها تلقائيًا.' : 'Image is too large. Select an image up to 30MB and it will be optimized automatically.');
       return;
     }
 
+    setProcessingImages(true);
     setError('');
     setSuccess('');
-    setFiles(selected);
+    try {
+      const normalized = await Promise.all(selected.map(normalizeImageFile));
+      setFiles(normalized);
+      setSuccess(isArabic ? 'تم تجهيز الصور للرفع بصيغة آمنة.' : 'Images optimized and ready to upload.');
+    } catch {
+      setFiles([]);
+      event.target.value = '';
+      setError(isArabic ? 'تعذر قراءة الصورة. جرّب اختيارها من المعرض الأصلي أو أرسلها كصورة JPG/PNG.' : 'Unable to read this image. Choose it from the original gallery or use a JPG/PNG export.');
+    } finally {
+      setProcessingImages(false);
+    }
   }
 
   function payloadFromForm() {
@@ -215,7 +315,7 @@ export default function AdminProducts() {
         <label>{isArabic ? 'السعر' : 'Price'}<input required type="number" min="0" step="0.01" value={form.price} onChange={e => set('price', e.target.value)} /></label>
         <label>{isArabic ? 'المخزون' : 'Stock'}<input required type="number" min="0" value={form.stock} onChange={e => set('stock', e.target.value)} /></label>
         <label>{isArabic ? 'الحالة' : 'Condition'}<select value={form.condition_status} onChange={e => set('condition_status', e.target.value)}><option value="new">{isArabic ? 'جديد' : 'New'}</option><option value="used">{isArabic ? 'مستعمل' : 'Used'}</option></select></label>
-        <label>{isArabic ? 'الصور (حتى 4 صور)' : 'Images (up to 4)'}<input key={fileInputKey} type="file" accept="image/png,image/jpeg,image/webp" multiple onChange={handleFileSelection} />{files.length > 0 && <span className="muted">{isArabic ? `${files.length} صورة جاهزة للحفظ` : `${files.length} image(s) ready to save`}</span>}</label>
+        <label>{isArabic ? 'الصور (حتى 4 صور)' : 'Images (up to 4)'}<input key={fileInputKey} type="file" accept="image/*" multiple onChange={handleFileSelection} disabled={processingImages || saving} />{processingImages && <span className="muted">{isArabic ? 'جارٍ تجهيز الصور...' : 'Optimizing images...'}</span>}{!processingImages && files.length > 0 && <span className="muted">{isArabic ? `${files.length} صورة جاهزة للحفظ` : `${files.length} image(s) ready to save`}</span>}</label>
         <label>{isArabic ? 'رابط الفيديو من Drive' : 'Video Drive URL'}<input value={media.video} onChange={e => setMedia({ ...media, video: e.target.value })} /></label>
         <label>{isArabic ? 'رابط الصوت من Drive' : 'Audio Drive URL'}<input value={media.audio} onChange={e => setMedia({ ...media, audio: e.target.value })} /></label>
         <label>{isArabic ? 'الوصف العربي' : 'Arabic description'}<textarea value={form.description_ar} onChange={e => set('description_ar', e.target.value)} /></label>
@@ -234,7 +334,7 @@ export default function AdminProducts() {
         <label><input type="checkbox" checked={form.is_active} onChange={e => set('is_active', e.target.checked)} /> {isArabic ? 'مفعل' : 'Active'}</label>
       </div>
       {editId && currentImages.length > 0 && <div className="card" style={{padding:'1rem',marginTop:'1rem'}}><h3>{isArabic ? 'صور المنتج' : 'Product Images'}</h3><div className="thumb-row">{currentImages.map(img => <div key={img.id} style={{display:'grid',gap:'.5rem'}}><img src={`${(import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace('/api','')}${img.image_url}`} alt={isArabic ? 'صورة المنتج' : 'Product'} loading="lazy" decoding="async"/><button type="button" className="icon-btn" onClick={() => deleteImage(img.id)}>{isArabic ? 'حذف' : 'Delete'}</button></div>)}</div></div>}
-      <div className="actions-row"><button className="btn" disabled={saving}>{saving ? (isArabic ? 'جارٍ الحفظ...' : 'Saving...') : (editId ? (isArabic ? 'حفظ التعديلات' : 'Save Changes') : (isArabic ? 'إضافة منتج' : 'Add Product'))}</button>{editId && <button type="button" className="btn btn-ghost" onClick={cancelEdit} disabled={saving}>{isArabic ? 'إلغاء التعديل' : 'Cancel Edit'}</button>}</div>
+      <div className="actions-row"><button className="btn" disabled={saving || processingImages}>{processingImages ? (isArabic ? 'جارٍ تجهيز الصور...' : 'Optimizing images...') : saving ? (isArabic ? 'جارٍ الحفظ...' : 'Saving...') : (editId ? (isArabic ? 'حفظ التعديلات' : 'Save Changes') : (isArabic ? 'إضافة منتج' : 'Add Product'))}</button>{editId && <button type="button" className="btn btn-ghost" onClick={cancelEdit} disabled={saving || processingImages}>{isArabic ? 'إلغاء التعديل' : 'Cancel Edit'}</button>}</div>
     </form>
     <div className="actions-row"><button className="icon-btn" disabled={!canPrev} onClick={() => load(Math.max(page.offset - page.limit, 0))}>{isArabic ? 'السابق' : 'Prev'}</button><span>{page.offset + 1}-{Math.min(page.offset + page.limit, page.total)} / {page.total}</span><button className="icon-btn" disabled={!canNext} onClick={() => load(page.offset + page.limit)}>{isArabic ? 'التالي' : 'Next'}</button></div>
     <table className="table"><thead><tr><th>{isArabic ? 'الاسم' : 'Name'}</th><th>{isArabic ? 'السعر' : 'Price'}</th><th>{isArabic ? 'المخزون' : 'Stock'}</th><th>{isArabic ? 'مفعل' : 'Active'}</th><th></th></tr></thead><tbody>{products.map(p => <tr key={p.id}><td>{p.name_ar || p.name_en}</td><td>${p.price}</td><td>{p.stock}</td><td>{p.is_active ? (isArabic ? 'نعم' : 'Yes') : (isArabic ? 'لا' : 'No')}</td><td><button className="icon-btn" onClick={() => startEdit(p)}>{isArabic ? 'تعديل' : 'Edit'}</button> <button className="icon-btn" onClick={() => remove(p.id)}>{isArabic ? 'حذف' : 'Delete'}</button></td></tr>)}</tbody></table>
