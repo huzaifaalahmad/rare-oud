@@ -8,6 +8,26 @@ const labels = {
   ar: { pending: 'بانتظار المراجعة', approved: 'مقبول', rejected: 'مرفوض', in_progress: 'قيد التنفيذ', completed: 'مكتمل' }
 };
 
+function itemName(item, isArabic) {
+  return isArabic
+    ? item.product_name_ar || item.product_name_en || item.product_current_name_ar || item.product_current_name_en || '-'
+    : item.product_name_en || item.product_name_ar || item.product_current_name_en || item.product_current_name_ar || '-';
+}
+
+function itemMeta(item, isArabic) {
+  const wood = isArabic ? item.product_woods_ar : item.product_woods_en;
+  const origin = isArabic ? item.product_origin_country_ar : item.product_origin_country_en;
+  const maker = isArabic ? item.product_maker_identity_ar : item.product_maker_identity_en;
+  return [
+    item.product_sku && `SKU: ${item.product_sku}`,
+    item.product_dimensions && `${isArabic ? 'القياسات' : 'Dimensions'}: ${item.product_dimensions}`,
+    wood && `${isArabic ? 'الخشب' : 'Wood'}: ${wood}`,
+    origin && `${isArabic ? 'المنشأ' : 'Origin'}: ${origin}`,
+    maker && `${isArabic ? 'الصانع' : 'Maker'}: ${maker}`,
+    item.product_condition_status && `${isArabic ? 'الحالة' : 'Condition'}: ${item.product_condition_status}`
+  ].filter(Boolean).join(' | ');
+}
+
 export default function AdminOrders() {
   const [orders, setOrders] = useState([]);
   const [error, setError] = useState('');
@@ -42,7 +62,7 @@ export default function AdminOrders() {
 
   const filtered = useMemo(
     () => orders.filter(o =>
-      `${o.order_number} ${o.customer_name} ${o.customer_phone} ${o.country || ''}`.toLowerCase().includes(q.toLowerCase())
+      `${o.order_number} ${o.customer_name} ${o.customer_phone} ${o.country || ''} ${(o.items || []).map(item => `${item.product_name_ar} ${item.product_name_en} ${item.product_sku || ''}`).join(' ')}`.toLowerCase().includes(q.toLowerCase())
     ),
     [orders, q]
   );
@@ -82,6 +102,7 @@ export default function AdminOrders() {
             <tr>
               <th>#</th>
               <th>{isArabic ? 'العميل' : 'Customer'}</th>
+              <th>{isArabic ? 'تفاصيل المنتج' : 'Product Details'}</th>
               <th>{isArabic ? 'الدولة' : 'Country'}</th>
               <th>{isArabic ? 'قيمة المنتج' : 'Product Value'}</th>
               <th>{isArabic ? 'الحالة' : 'Status'}</th>
@@ -96,6 +117,20 @@ export default function AdminOrders() {
                   {o.customer_name}<br />
                   <small>{o.customer_phone}</small>
                   {o.customer_email && <><br /><small>{o.customer_email}</small></>}
+                </td>
+                <td className="order-product-cell">
+                  {(o.items || []).length ? (o.items || []).map(item => {
+                    const meta = itemMeta(item, isArabic);
+                    return (
+                      <div className="order-product-item" key={item.id}>
+                        <strong>{itemName(item, isArabic)}</strong>
+                        <span>
+                          {isArabic ? 'الكمية' : 'Qty'}: {item.quantity} | {isArabic ? 'سعر القطعة' : 'Unit'}: ${Number(item.unit_price || 0).toFixed(2)} | {isArabic ? 'المجموع' : 'Total'}: ${Number(item.total || 0).toFixed(2)}
+                        </span>
+                        {meta && <small>{meta}</small>}
+                      </div>
+                    );
+                  }) : '-'}
                 </td>
                 <td>{o.country || '-'}</td>
                 <td>${Number(o.total || 0).toFixed(2)}</td>

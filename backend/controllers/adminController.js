@@ -1,4 +1,5 @@
 const db = require('../config/database');
+const { getSiteVisitStats } = require('../services/siteVisitService');
 
 const redis = require('../config/redis');
 const { queueRegistry, emailQueue, notificationQueue, auditQueue } = require('../queues');
@@ -9,15 +10,16 @@ exports.analytics = async (_req, res, next) => {
     const [sales] = await Promise.all([
       db.query(`SELECT COUNT(*) orders_count, COALESCE(SUM(total),0) revenue, SUM(status='pending') pending_orders FROM orders`)
     ]);
-    const [users, products, reviews, customOrders, recentOrders, audit] = await Promise.all([
+    const [users, products, reviews, customOrders, visits, recentOrders, audit] = await Promise.all([
       db.query('SELECT COUNT(*) total_users, SUM(role="admin") admins FROM users WHERE deleted_at IS NULL'),
       db.query('SELECT COUNT(*) total_products, SUM(stock=0) out_of_stock, SUM(is_featured=TRUE) featured FROM products WHERE deleted_at IS NULL'),
       db.query('SELECT COUNT(*) total_reviews, SUM(is_approved=FALSE) pending_reviews FROM product_reviews WHERE deleted_at IS NULL'),
       db.query('SELECT COUNT(*) total_custom_orders, SUM(status="pending") open_custom_orders FROM custom_orders'),
+      getSiteVisitStats().catch(() => ({ total_visits: 0, today_visits: 0, unique_visitors: 0, today_unique_visitors: 0, top_paths: [] })),
       db.query('SELECT id,order_number,status,total,created_at FROM orders ORDER BY created_at DESC LIMIT 8'),
       db.query('SELECT l.*,u.name admin_name FROM admin_audit_logs l LEFT JOIN users u ON u.id=l.admin_id ORDER BY l.created_at DESC LIMIT 30')
     ]);
-    res.json({ sales: sales[0], users: users[0], products: products[0], reviews: reviews[0], customOrders: customOrders[0], recentOrders, activity: audit });
+    res.json({ sales: sales[0], users: users[0], products: products[0], reviews: reviews[0], customOrders: customOrders[0], visits, recentOrders, activity: audit });
   } catch (e) { next(e); }
 };
 

@@ -24,6 +24,55 @@ const VALID_ORDER_STATUS = ['pending', 'approved', 'rejected', 'in_progress', 'c
 const ORDER_PUBLIC_FIELDS = 'id, order_number, status, customer_name, customer_phone, country, notes, subtotal, total, created_at, updated_at';
 const ORDER_ADMIN_FIELDS = 'id, user_id, order_number, status, customer_name, customer_email, customer_phone, country, notes, subtotal, total, created_at, updated_at';
 
+async function getOrderItems(orderIds = []) {
+  const ids = [...new Set(orderIds.map(Number).filter(Boolean))];
+  if (!ids.length) return new Map();
+
+  const params = {};
+  const placeholders = ids.map((id, index) => {
+    const key = `id${index}`;
+    params[key] = id;
+    return `:${key}`;
+  }).join(',');
+
+  const rows = await db.query(
+    `SELECT
+       oi.*,
+       p.slug product_slug,
+       p.sku product_sku,
+       p.name_ar product_current_name_ar,
+       p.name_en product_current_name_en,
+       p.condition_status product_condition_status,
+       p.dimensions product_dimensions,
+       p.woods_ar product_woods_ar,
+       p.woods_en product_woods_en,
+       p.origin_country_ar product_origin_country_ar,
+       p.origin_country_en product_origin_country_en,
+       p.maker_identity_ar product_maker_identity_ar,
+       p.maker_identity_en product_maker_identity_en
+     FROM order_items oi
+     LEFT JOIN products p ON p.id=oi.product_id
+     WHERE oi.order_id IN (${placeholders})
+     ORDER BY oi.id ASC`,
+    params
+  );
+
+  return rows.reduce((map, item) => {
+    const key = Number(item.order_id);
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(item);
+    return map;
+  }, new Map());
+}
+
+async function attachOrderItems(orders = []) {
+  const itemMap = await getOrderItems(orders.map(order => order.id));
+  return orders.map(order => ({
+    ...order,
+    items: itemMap.get(Number(order.id)) || []
+  }));
+}
+
 async function getAdminUsers() {
   return db.query(
     `SELECT id
@@ -112,7 +161,7 @@ exports.adminList = async (req, res, next) => {
     const params = status ? { status } : {};
     const total = await db.query(`SELECT COUNT(*) total FROM orders ${where}`, params);
     const orders = await db.query(`SELECT ${ORDER_ADMIN_FIELDS} FROM orders ${where} ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}`, params);
-    res.json({ orders, total: total[0]?.total || 0, limit, offset });
+    res.json({ orders: await attachOrderItems(orders), total: total[0]?.total || 0, limit, offset });
   } catch (e) { next(e); }
 };
 
@@ -123,7 +172,8 @@ exports.get = async (req, res, next) => {
       : `SELECT ${ORDER_PUBLIC_FIELDS} FROM orders WHERE id=:id AND user_id=:user_id AND deleted_at IS NULL`;
     const rows = await db.query(sql, { id: req.params.id, user_id: req.user.id });
     if (!rows.length) throw new AppError('Order not found', 404, 'ORDER_NOT_FOUND');
-    const items = await db.query('SELECT * FROM order_items WHERE order_id=:id', { id: req.params.id });
+    const itemMap = await getOrderItems([req.params.id]);
+    const items = itemMap.get(Number(req.params.id)) || [];
     res.json({ order: rows[0], items });
   } catch (e) { next(e); }
 };

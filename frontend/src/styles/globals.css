@@ -2021,6 +2021,33 @@ select:focus {
   overflow-wrap: anywhere;
 }
 
+.order-product-cell {
+  min-width: 260px;
+}
+
+.order-product-item {
+  display: grid;
+  gap: .25rem;
+  padding: .55rem .65rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface-2) 70%, transparent);
+}
+
+.order-product-item + .order-product-item {
+  margin-top: .5rem;
+}
+
+.order-product-item strong {
+  color: var(--heading);
+}
+
+.order-product-item span,
+.order-product-item small {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
 @media(max-width:640px) {
   .admin-section-heading {
     align-items: stretch;

@@ -3,6 +3,7 @@ import { Routes, Route, useLocation } from 'react-router-dom';
 import Navbar from './components/common/Navbar.jsx';
 import Footer from './components/common/Footer.jsx';
 import ProtectedAdminRoute from './components/admin/ProtectedAdminRoute.jsx';
+import api from './services/api.js';
 
 const Home = lazy(() => import('./pages/Home.jsx'));
 const Products = lazy(() => import('./pages/Products.jsx'));
@@ -83,8 +84,38 @@ function useExperienceMotion() {
   }, [location.pathname, location.search]);
 }
 
+function getVisitorId() {
+  if (typeof window === 'undefined') return '';
+  const key = 'rare_oud_visitor_id';
+  let id = window.localStorage.getItem(key);
+  if (!id) {
+    id = window.crypto?.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+    window.localStorage.setItem(key, id);
+  }
+  return id;
+}
+
+function useSiteVisitTracking() {
+  const location = useLocation();
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const path = `${location.pathname}${location.search || ''}`;
+    const sessionKey = `rare_oud_visit:${path}`;
+    if (window.sessionStorage.getItem(sessionKey)) return;
+
+    window.sessionStorage.setItem(sessionKey, '1');
+    api.post('/analytics/visit', {
+      path,
+      referrer: document.referrer || '',
+      visitor_id: getVisitorId()
+    }, { skipAuthRefresh: true }).catch(() => {});
+  }, [location.pathname, location.search]);
+}
+
 export default function App(){
   useExperienceMotion();
+  useSiteVisitTracking();
 
   return <>
     <a className="skip-link" href="#main-content">Skip to content</a>

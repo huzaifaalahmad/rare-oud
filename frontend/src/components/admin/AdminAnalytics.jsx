@@ -52,6 +52,9 @@ export default function AdminAnalytics() {
 
   const cards = [
     [isArabic ? 'الإيرادات' : 'Revenue', `$${Number(data.sales?.revenue || 0).toFixed(2)}`],
+    [isArabic ? 'زيارات الموقع' : 'Site visits', data.visits?.total_visits || 0],
+    [isArabic ? 'زيارات اليوم' : 'Today visits', data.visits?.today_visits || 0],
+    [isArabic ? 'زوار مميزون' : 'Unique visitors', data.visits?.unique_visitors || 0],
     [isArabic ? 'الطلبات' : 'Orders', data.sales?.orders_count || 0],
     [isArabic ? 'بانتظار المعالجة' : 'Pending', data.sales?.pending_orders || 0],
     [isArabic ? 'المنتجات' : 'Products', data.products?.total_products || 0],
@@ -72,6 +75,24 @@ export default function AdminAnalytics() {
           </div>
         ))}
       </div>
+
+      {!!(data.visits?.top_paths || []).length && (
+        <>
+          <h3>{isArabic ? 'أكثر الصفحات زيارة' : 'Top visited pages'}</h3>
+          <div className="table-wrap">
+            <table className="table">
+              <tbody>
+                {(data.visits.top_paths || []).map(row => (
+                  <tr key={row.path}>
+                    <td>{row.path}</td>
+                    <td>{row.visits}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
 
       <h3>{isArabic ? 'أحدث الطلبات' : 'Recent orders'}</h3>
       <div className="table-wrap">
