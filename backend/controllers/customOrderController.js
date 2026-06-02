@@ -4,6 +4,7 @@ const { audit } = require('../utils/audit');
 const AppError = require('../utils/AppError');
 const logger = require('../utils/logger');
 const { createNotification } = require('../utils/notifications');
+const { sendAdminWhatsAppMessage, formatCustomOrderWhatsAppMessage } = require('../utils/whatsapp');
 
 let sendCustomOrderStatusEmail = null;
 try {
@@ -105,6 +106,9 @@ exports.create = async (req, res, next) => {
       sendCustomOrderStatusEmail(order.email, { ...order, admin_note: null })
         .catch(error => logger.error('Custom order confirm email failed', { error: error.message }));
     }
+
+    sendAdminWhatsAppMessage(formatCustomOrderWhatsAppMessage(order), { customOrderId: order.id })
+      .catch(error => logger.error('Custom order WhatsApp notification failed', { error: error.message, customOrderId: order.id }));
 
     res.status(201).json({
       id: result.insertId,
