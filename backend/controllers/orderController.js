@@ -5,6 +5,7 @@ const { transaction } = db;
 const { audit } = require('../utils/audit');
 const AppError = require('../utils/AppError');
 const { createNotification } = require('../utils/notifications');
+const { sendAdminWhatsAppMessage, formatDirectOrderWhatsAppMessage } = require('../utils/whatsapp');
 const logger = require('../utils/logger');
 let sendOrderConfirmationEmail = null;
 try { ({ sendOrderConfirmationEmail } = require('../utils/mailer')); } catch {}
@@ -104,7 +105,7 @@ exports.createDirect = async (req, res, next) => {
 
     const result = await transaction(async (conn) => {
       const [products] = await conn.execute(
-        'SELECT id,name_ar,name_en,price,stock FROM products WHERE id=? AND deleted_at IS NULL AND is_active=TRUE FOR UPDATE',
+        'SELECT id,name_ar,name_en,price,stock,sku,slug,condition_status,dimensions,woods_ar,woods_en,origin_country_ar,origin_country_en,maker_identity_ar,maker_identity_en FROM products WHERE id=? AND deleted_at IS NULL AND is_active=TRUE FOR UPDATE',
         [b.product_id]
       );
       if (!products.length) throw new AppError('Product unavailable', 409, 'PRODUCT_UNAVAILABLE');
@@ -120,7 +121,19 @@ exports.createDirect = async (req, res, next) => {
         'INSERT INTO order_items (order_id,product_id,product_name_ar,product_name_en,unit_price,quantity,total) VALUES (?,?,?,?,?,?,?)',
         [r.insertId, p.id, p.name_ar, p.name_en, p.price, quantity, subtotal]
       );
-      return { id: r.insertId, order_number: orderNumber, product: p, subtotal };
+      return {
+        id: r.insertId,
+        order_number: orderNumber,
+        product: p,
+        quantity,
+        customer_name: b.customer_name,
+        customer_email: b.customer_email || null,
+        customer_phone: b.customer_phone,
+        country: b.country || null,
+        notes: b.notes || null,
+        subtotal,
+        total: subtotal
+      };
     });
 
     if (req.user?.id) {
@@ -137,6 +150,8 @@ exports.createDirect = async (req, res, next) => {
       order_number: orderNumber,
       customer_name: b.customer_name
     }).catch(error => logger.error('Admin direct order notification failed', { error: error.message }));
+    sendAdminWhatsAppMessage(formatDirectOrderWhatsAppMessage(result), { orderNumber })
+      .catch(error => logger.error('Direct order WhatsApp notification failed', { error: error.message, orderNumber }));
     if (sendOrderConfirmationEmail && b.customer_email) {
       sendOrderConfirmationEmail(b.customer_email, { order_number: orderNumber, id: result.id })
         .catch(err => logger.error('Direct order email failed', { error: err.message }));
