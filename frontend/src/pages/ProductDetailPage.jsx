@@ -14,6 +14,29 @@ function cleanDriveUrl(url) {
   return match ? `https://drive.google.com/file/d/${match[1]}/view` : raw;
 }
 
+const PHONE_COUNTRIES = [
+  { code: 'SY', dialCode: '+963', ar: 'سوريا', en: 'Syria' },
+  { code: 'AE', dialCode: '+971', ar: 'الإمارات', en: 'United Arab Emirates' },
+  { code: 'SA', dialCode: '+966', ar: 'السعودية', en: 'Saudi Arabia' },
+  { code: 'QA', dialCode: '+974', ar: 'قطر', en: 'Qatar' },
+  { code: 'KW', dialCode: '+965', ar: 'الكويت', en: 'Kuwait' },
+  { code: 'BH', dialCode: '+973', ar: 'البحرين', en: 'Bahrain' },
+  { code: 'OM', dialCode: '+968', ar: 'عمان', en: 'Oman' },
+  { code: 'JO', dialCode: '+962', ar: 'الأردن', en: 'Jordan' },
+  { code: 'LB', dialCode: '+961', ar: 'لبنان', en: 'Lebanon' },
+  { code: 'TR', dialCode: '+90', ar: 'تركيا', en: 'Turkey' },
+  { code: 'IQ', dialCode: '+964', ar: 'العراق', en: 'Iraq' },
+  { code: 'EG', dialCode: '+20', ar: 'مصر', en: 'Egypt' },
+  { code: 'US', dialCode: '+1', ar: 'أمريكا', en: 'United States' },
+  { code: 'GB', dialCode: '+44', ar: 'بريطانيا', en: 'United Kingdom' },
+  { code: 'DE', dialCode: '+49', ar: 'ألمانيا', en: 'Germany' },
+  { code: 'FR', dialCode: '+33', ar: 'فرنسا', en: 'France' }
+];
+
+function getNamePartCount(value) {
+  return String(value || '').trim().split(/\s+/).filter(Boolean).length;
+}
+
 export default function ProductDetailPage() {
   const { id } = useParams();
   const [state, setState] = useState({ loading: true, error: '', data: null });
@@ -23,7 +46,9 @@ export default function ProductDetailPage() {
   const [order, setOrder] = useState({
     customer_name: '',
     customer_email: '',
+    customer_phone_country_code: 'SY',
     customer_phone: '',
+    customer_address: '',
     country: '',
     notes: '',
     quantity: 1,
@@ -71,6 +96,16 @@ export default function ProductDetailPage() {
         .catch(() => {});
     }
   }, [state.data?.product, user?.id]);
+
+  useEffect(() => {
+    if (!user) return;
+    setOrder(current => ({
+      ...current,
+      customer_name: current.customer_name || user.name || '',
+      customer_email: current.customer_email || user.email || '',
+      customer_phone: current.customer_phone || user.phone || ''
+    }));
+  }, [user?.id]);
 
   const settingsPromise = useMemo(
     () => api.get('/content/settings').catch(() => ({ data: { settings: {} } })),
@@ -133,9 +168,21 @@ export default function ProductDetailPage() {
   async function submitOrder(e) {
     e.preventDefault();
     const customerName = String(order.customer_name || '').trim();
+    const customerPhone = String(order.customer_phone || '').trim();
+    const customerAddress = String(order.customer_address || '').trim();
 
-    if (customerName.length < 2 || customerName.length > 140) {
-      setOrder(o => ({ ...o, message: isArabic ? 'اكتب اسماً صحيحاً بين 2 و140 حرفاً.' : 'Enter a valid name between 2 and 140 characters.' }));
+    if (getNamePartCount(customerName) < 3 || customerName.length > 140) {
+      setOrder(o => ({ ...o, message: isArabic ? 'اكتب الاسم الثلاثي الكامل.' : 'Enter your full three-part name.' }));
+      return;
+    }
+
+    if (!order.customer_phone_country_code || customerPhone.length < 6) {
+      setOrder(o => ({ ...o, message: isArabic ? 'اختر رمز الدولة الصحيح واكتب رقم الهاتف.' : 'Choose a valid country code and enter your phone number.' }));
+      return;
+    }
+
+    if (customerAddress.length < 5) {
+      setOrder(o => ({ ...o, message: isArabic ? 'اكتب عنوان التسليم الكامل.' : 'Enter your full delivery address.' }));
       return;
     }
 
@@ -147,7 +194,9 @@ export default function ProductDetailPage() {
         quantity: order.quantity,
         customer_name: customerName,
         customer_email: order.customer_email,
-        customer_phone: order.customer_phone,
+        customer_phone_country_code: order.customer_phone_country_code,
+        customer_phone: customerPhone,
+        customer_address: customerAddress,
         country: order.country,
         notes: order.notes
       });
@@ -283,11 +332,20 @@ export default function ProductDetailPage() {
             <form className="card direct-order-form" onSubmit={submitOrder}>
               <h3>{isArabic ? 'طلب المنتج مباشرة' : 'Direct product request'}</h3>
               <div className="form-grid">
-                <input required minLength="2" maxLength="140" placeholder={isArabic ? 'الاسم' : 'Name'} value={order.customer_name} onChange={e => setOrder(o => ({ ...o, customer_name: e.target.value }))} />
-                <input placeholder={isArabic ? 'البريد الإلكتروني اختياري' : 'Email optional'} value={order.customer_email} onChange={e => setOrder(o => ({ ...o, customer_email: e.target.value }))} />
-                <input required placeholder={isArabic ? 'رقم الهاتف' : 'Phone'} value={order.customer_phone} onChange={e => setOrder(o => ({ ...o, customer_phone: e.target.value }))} />
+                <input required minLength="6" maxLength="140" placeholder={isArabic ? 'الاسم الثلاثي الكامل' : 'Full three-part name'} value={order.customer_name} onChange={e => setOrder(o => ({ ...o, customer_name: e.target.value }))} />
+                <input type="email" placeholder={isArabic ? 'البريد الإلكتروني اختياري' : 'Email optional'} value={order.customer_email} onChange={e => setOrder(o => ({ ...o, customer_email: e.target.value }))} />
+                <select required value={order.customer_phone_country_code} onChange={e => setOrder(o => ({ ...o, customer_phone_country_code: e.target.value }))} aria-label={isArabic ? 'رمز الدولة' : 'Country code'}>
+                  {PHONE_COUNTRIES.map(country => (
+                    <option value={country.code} key={country.code}>
+                      {country.dialCode} — {isArabic ? country.ar : country.en}
+                    </option>
+                  ))}
+                </select>
+                <input required inputMode="tel" placeholder={isArabic ? 'رقم الهاتف' : 'Phone number'} value={order.customer_phone} onChange={e => setOrder(o => ({ ...o, customer_phone: e.target.value }))} />
                 <input placeholder={isArabic ? 'الدولة' : 'Country'} value={order.country} onChange={e => setOrder(o => ({ ...o, country: e.target.value }))} />
+                <input type="number" min="1" max="20" placeholder={isArabic ? 'الكمية' : 'Quantity'} value={order.quantity} onChange={e => setOrder(o => ({ ...o, quantity: e.target.value }))} />
               </div>
+              <textarea required minLength="5" rows="3" placeholder={isArabic ? 'عنوان التسليم الكامل' : 'Full delivery address'} value={order.customer_address} onChange={e => setOrder(o => ({ ...o, customer_address: e.target.value }))} />
               <textarea rows="3" placeholder={isArabic ? 'ملاحظات حول الطلب' : 'Notes'} value={order.notes} onChange={e => setOrder(o => ({ ...o, notes: e.target.value }))} />
               <div className="actions-row">
                 <button className="btn" disabled={order.saving}>{order.saving ? (isArabic ? 'جاري الإرسال' : 'Sending') : (isArabic ? 'إرسال إلى الإدارة' : 'Send to Admin')}</button>
