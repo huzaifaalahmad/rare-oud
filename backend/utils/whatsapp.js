@@ -36,6 +36,7 @@ function formatDirectOrderWhatsAppMessage(order = {}) {
     `Phone: ${order.customer_phone || '-'}`,
     order.customer_email ? `Email: ${order.customer_email}` : null,
     order.country ? `Country: ${order.country}` : null,
+    order.shipping_address ? `Delivery address: ${order.shipping_address}` : null,
     '',
     `Product AR: ${product.name_ar || order.product_name_ar || '-'}`,
     `Product EN: ${product.name_en || order.product_name_en || '-'}`,
