@@ -21,6 +21,10 @@ function hasThreeNameParts(value) {
   return cleanText(value, { max: 140 }).split(/\s+/).filter(Boolean).length >= 3;
 }
 
+function normalizeAddress(value, req) {
+  return cleanText(value || req.body.shipping_address || req.body.address, { max: 500, allowNewLines: true });
+}
+
 const supportedCountryCodes = PHONE_COUNTRIES.map(country => country.code);
 const directOrderValidation = [
   body('product_id').isInt({ min: 1 }).toInt(),
@@ -41,7 +45,7 @@ const directOrderValidation = [
     .notEmpty()
     .withMessage('A valid phone number with country code is required'),
   body('customer_address')
-    .customSanitizer(value => cleanText(value, { max: 500, allowNewLines: true }))
+    .customSanitizer((value, { req }) => normalizeAddress(value, req))
     .isLength({ min: 5, max: 500 })
     .withMessage('A delivery address is required')
     .escape(),
