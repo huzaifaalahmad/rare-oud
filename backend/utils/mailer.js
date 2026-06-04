@@ -7,7 +7,7 @@ function escapeHtml(value = '') {
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
+    .replace(/\"/g, '&quot;')
     .replace(/'/g, '&#39;');
 }
 
@@ -15,9 +15,18 @@ function textToHtml(value = '') {
   return escapeHtml(value).replace(/\n/g, '<br>');
 }
 
+function displayValue(value) {
+  return value === undefined || value === null || value === '' ? '-' : value;
+}
+
 function formatDate(value) {
   if (!value) return '-';
   return new Date(value).toISOString().replace('T', ' ').slice(0, 19);
+}
+
+function money(value) {
+  const amount = Number(value);
+  return Number.isFinite(amount) ? `$${amount.toFixed(2)}` : displayValue(value);
 }
 
 async function sendQueuedEmail(payload, opts = {}) {
@@ -51,14 +60,55 @@ function detailsTable(rows) {
         ${rows.map(([label, value]) => `
           <tr>
             <th style="text-align:left;vertical-align:top;padding:10px;border-bottom:1px solid #E8DFD0;color:#4A144D;width:160px">${escapeHtml(label)}</th>
-            <td style="padding:10px;border-bottom:1px solid #E8DFD0">${textToHtml(value || '-')}</td>
+            <td style="padding:10px;border-bottom:1px solid #E8DFD0">${textToHtml(displayValue(value))}</td>
           </tr>`).join('')}
       </tbody>
     </table>`;
 }
 
+function orderRows(order = {}) {
+  const product = order.product || {};
+  return [
+    ['Order number', order.order_number || order.id],
+    ['Customer name', order.customer_name],
+    ['Customer email', order.customer_email],
+    ['Customer phone', order.customer_phone],
+    ['Country', order.country],
+    ['Delivery address', order.shipping_address],
+    ['Product AR', product.name_ar || order.product_name_ar],
+    ['Product EN', product.name_en || order.product_name_en],
+    ['SKU', product.sku || order.product_sku],
+    ['Slug', product.slug || order.product_slug],
+    ['Condition', product.condition_status || order.product_condition_status],
+    ['Dimensions', product.dimensions || order.product_dimensions],
+    ['Wood AR', product.woods_ar || order.product_woods_ar],
+    ['Wood EN', product.woods_en || order.product_woods_en],
+    ['Origin AR', product.origin_country_ar || order.product_origin_country_ar],
+    ['Origin EN', product.origin_country_en || order.product_origin_country_en],
+    ['Maker AR', product.maker_identity_ar || order.product_maker_identity_ar],
+    ['Maker EN', product.maker_identity_en || order.product_maker_identity_en],
+    ['Quantity', order.quantity],
+    ['Unit price', money(product.price || order.unit_price)],
+    ['Subtotal', money(order.subtotal)],
+    ['Total', money(order.total || order.subtotal)],
+    ['Notes', order.notes]
+  ];
+}
+
+function orderText(order) {
+  return orderRows(order).map(([label, value]) => `${label}: ${displayValue(value)}`).join('\n');
+}
+
 function orderHtml(order) {
-  return baseShell('Rare Oud order received', `<p>Rare Oud received your request <strong>${escapeHtml(order.order_number || order.id)}</strong>.</p>`);
+  return baseShell('Rare Oud order received', `
+    <p>Rare Oud received your request <strong>${escapeHtml(order.order_number || order.id)}</strong>.</p>
+    ${detailsTable(orderRows(order))}`);
+}
+
+function orderAdminHtml(order) {
+  return baseShell('New Rare Oud product request', `
+    <p>A new product request has been submitted and is available in the admin dashboard.</p>
+    ${detailsTable(orderRows(order))}`);
 }
 
 function customOrderHtml(order) {
@@ -109,8 +159,8 @@ function contactReplyHtml(message) {
 }
 
 function contactText(message, includeReply = false) {
-  const lines = contactMessageRows(message).map(([label, value]) => `${label}: ${value || '-'}`);
-  if (includeReply) lines.push(`Admin reply: ${message.admin_reply || '-'}`);
+  const lines = contactMessageRows(message).map(([label, value]) => `${label}: ${displayValue(value)}`);
+  if (includeReply) lines.push(`Admin reply: ${displayValue(message.admin_reply)}`);
   return lines.join('\n');
 }
 
@@ -118,8 +168,18 @@ async function sendOrderConfirmationEmail(to, order) {
   return sendQueuedEmail({
     to,
     subject: `Rare Oud order ${order.order_number || order.id}`,
-    html: orderHtml(order)
+    html: orderHtml(order),
+    text: orderText(order)
   }, { name: 'order-confirmation' });
+}
+
+async function sendOrderAdminNotificationEmail(to, order) {
+  return sendQueuedEmail({
+    to,
+    subject: `New Rare Oud order ${order.order_number || order.id}`,
+    html: orderAdminHtml(order),
+    text: orderText(order)
+  }, { name: 'order-admin-notification' });
 }
 
 async function sendCustomOrderStatusEmail(to, order) {
@@ -171,6 +231,7 @@ async function sendResetEmail(to, token, frontendUrl) {
 module.exports = {
   sendQueuedEmail,
   sendOrderConfirmationEmail,
+  sendOrderAdminNotificationEmail,
   sendCustomOrderStatusEmail,
   sendContactMessageConfirmationEmail,
   sendContactAdminNotificationEmail,
