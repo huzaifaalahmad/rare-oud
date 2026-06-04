@@ -6,7 +6,7 @@ const auth = require('../middleware/auth');
 const admin = require('../middleware/admin');
 const { requirePermission } = admin;
 const { directOrderLimiter } = require('../middleware/security');
-const { normalizePhone, normalizeCountryCode, cleanText, PHONE_COUNTRIES } = require('../utils/inputValidation');
+const { normalizePhone, normalizeCountryCode, cleanText, PHONE_COUNTRIES, namePattern } = require('../utils/inputValidation');
 
 function optionalAuth(req, _res, next) {
   const header = req.headers.authorization || '';
@@ -17,13 +17,34 @@ function optionalAuth(req, _res, next) {
   return next();
 }
 
+function hasThreeNameParts(value) {
+  return cleanText(value, { max: 140 }).split(/\s+/).filter(Boolean).length >= 3;
+}
+
+const supportedCountryCodes = PHONE_COUNTRIES.map(country => country.code);
 const directOrderValidation = [
   body('product_id').isInt({ min: 1 }).toInt(),
   body('quantity').optional({ checkFalsy: true }).isInt({ min: 1, max: 20 }).toInt(),
-  body('customer_name').customSanitizer(value => cleanText(value, { max: 140 })).isLength({ min: 2, max: 140 }).escape(),
+  body('customer_name')
+    .customSanitizer(value => cleanText(value, { max: 140 }))
+    .custom(value => namePattern.test(value) && hasThreeNameParts(value))
+    .withMessage('A valid three-part full name is required')
+    .isLength({ min: 6, max: 140 })
+    .escape(),
   body('customer_email').optional({ checkFalsy: true }).isEmail().normalizeEmail(),
-  body('customer_phone_country_code').optional({ checkFalsy: true }).isIn(PHONE_COUNTRIES.map(c => c.code)).customSanitizer(value => normalizeCountryCode(value, 'SY')),
-  body('customer_phone').customSanitizer((value, { req }) => normalizePhone(value, req.body.customer_phone_country_code || 'SY')).notEmpty(),
+  body('customer_phone_country_code')
+    .customSanitizer(value => normalizeCountryCode(value, ''))
+    .isIn(supportedCountryCodes)
+    .withMessage('A supported phone country code is required'),
+  body('customer_phone')
+    .customSanitizer((value, { req }) => normalizePhone(value, req.body.customer_phone_country_code))
+    .notEmpty()
+    .withMessage('A valid phone number with country code is required'),
+  body('customer_address')
+    .customSanitizer(value => cleanText(value, { max: 500, allowNewLines: true }))
+    .isLength({ min: 5, max: 500 })
+    .withMessage('A delivery address is required')
+    .escape(),
   body('country').optional({ checkFalsy: true }).customSanitizer(value => cleanText(value, { max: 120 })).isLength({ max: 120 }).escape(),
   body('notes').optional({ checkFalsy: true }).customSanitizer(value => cleanText(value, { max: 2000, allowNewLines: true })).isLength({ max: 2000 }).escape()
 ];
