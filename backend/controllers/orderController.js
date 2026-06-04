@@ -8,7 +8,8 @@ const { createNotification } = require('../utils/notifications');
 const { sendAdminWhatsAppMessage, formatDirectOrderWhatsAppMessage } = require('../utils/whatsapp');
 const logger = require('../utils/logger');
 let sendOrderConfirmationEmail = null;
-try { ({ sendOrderConfirmationEmail } = require('../utils/mailer')); } catch {}
+let sendOrderAdminNotificationEmail = null;
+try { ({ sendOrderConfirmationEmail, sendOrderAdminNotificationEmail } = require('../utils/mailer')); } catch {}
 
 function fail(req) {
   const e = validationResult(req);
@@ -22,8 +23,8 @@ function page(req, max = 100) {
 }
 
 const VALID_ORDER_STATUS = ['pending', 'approved', 'rejected', 'in_progress', 'completed'];
-const ORDER_PUBLIC_FIELDS = 'id, order_number, status, customer_name, customer_phone, country, notes, subtotal, total, created_at, updated_at';
-const ORDER_ADMIN_FIELDS = 'id, user_id, order_number, status, customer_name, customer_email, customer_phone, country, notes, subtotal, total, created_at, updated_at';
+const ORDER_PUBLIC_FIELDS = 'id, order_number, status, customer_name, customer_phone, country, shipping_address, notes, subtotal, total, created_at, updated_at';
+const ORDER_ADMIN_FIELDS = 'id, user_id, order_number, status, customer_name, customer_email, customer_phone, country, shipping_address, notes, subtotal, total, created_at, updated_at';
 
 async function getOrderItems(orderIds = []) {
   const ids = [...new Set(orderIds.map(Number).filter(Boolean))];
@@ -113,9 +114,9 @@ exports.createDirect = async (req, res, next) => {
       const subtotal = Number(p.price || 0) * quantity;
 
       const [r] = await conn.execute(
-        `INSERT INTO orders (user_id,order_number,status,customer_name,customer_email,customer_phone,country,notes,subtotal,total)
-         VALUES (?,?,?,?,?,?,?,?,?,?)`,
-        [req.user?.id || null, orderNumber, 'pending', b.customer_name, b.customer_email || null, b.customer_phone, b.country || null, b.notes || null, subtotal, subtotal]
+        `INSERT INTO orders (user_id,order_number,status,customer_name,customer_email,customer_phone,country,shipping_address,notes,subtotal,total)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+        [req.user?.id || null, orderNumber, 'pending', b.customer_name, b.customer_email || null, b.customer_phone, b.country || null, b.customer_address, b.notes || null, subtotal, subtotal]
       );
       await conn.execute(
         'INSERT INTO order_items (order_id,product_id,product_name_ar,product_name_en,unit_price,quantity,total) VALUES (?,?,?,?,?,?,?)',
@@ -130,6 +131,7 @@ exports.createDirect = async (req, res, next) => {
         customer_email: b.customer_email || null,
         customer_phone: b.customer_phone,
         country: b.country || null,
+        shipping_address: b.customer_address,
         notes: b.notes || null,
         subtotal,
         total: subtotal
@@ -152,8 +154,12 @@ exports.createDirect = async (req, res, next) => {
     }).catch(error => logger.error('Admin direct order notification failed', { error: error.message }));
     sendAdminWhatsAppMessage(formatDirectOrderWhatsAppMessage(result), { orderNumber })
       .catch(error => logger.error('Direct order WhatsApp notification failed', { error: error.message, orderNumber }));
+    if (sendOrderAdminNotificationEmail && process.env.ADMIN_EMAIL) {
+      sendOrderAdminNotificationEmail(process.env.ADMIN_EMAIL, result)
+        .catch(err => logger.error('Direct order admin email failed', { error: err.message, orderNumber }));
+    }
     if (sendOrderConfirmationEmail && b.customer_email) {
-      sendOrderConfirmationEmail(b.customer_email, { order_number: orderNumber, id: result.id })
+      sendOrderConfirmationEmail(b.customer_email, result)
         .catch(err => logger.error('Direct order email failed', { error: err.message }));
     }
     res.status(201).json({ id: result.id, order_number: orderNumber, status: 'pending', message: 'Direct product request created' });
