@@ -1,54 +1,32 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useLocation, useParams } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import api from '../services/api.js';
 import ProductCard from '../components/products/ProductCard.jsx';
 import ProductFilters from '../components/products/ProductFilters.jsx';
-import EmptyState from '../components/common/EmptyState.jsx';
 import SkeletonGrid from '../components/common/SkeletonGrid.jsx';
 import SEO from '../components/seo/SEO.jsx';
 import { useLanguage } from '../context/LanguageContext.jsx';
-
-export default function Products({ defaultCategory } = {}) {
-  const { slug } = useParams();
-  const location = useLocation();
-  const categorySlug = slug || defaultCategory || (location.pathname === '/accessories' ? 'accessories' : undefined);
-  const { tr } = useLanguage();
-  const [products, setProducts] = useState([]);
-  const [filters, setFilters] = useState({});
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let active = true;
-    setLoading(true);
-    const isAccessories = categorySlug === 'accessories';
-    const params = {
-      category: categorySlug,
-      q: filters.search || undefined,
-      condition: filters.condition || undefined,
-      wood: !isAccessories ? filters.wood || undefined : undefined,
-      accessory: isAccessories ? filters.accessory || undefined : undefined,
-      country: filters.country || undefined
-    };
-    if (filters.availability === 'in_stock') params.available = 'true';
-
-    api.get('/products', { params })
-      .then(r => { if (active) setProducts(r.data.products || []); })
-      .catch(() => { if (active) setProducts([]); })
-      .finally(() => { if (active) setLoading(false); });
-
-    return () => { active = false; };
-  }, [categorySlug, filters.search, filters.condition, filters.availability, filters.wood, filters.accessory, filters.country]);
-
-  const visible = useMemo(() =>
-    products.filter(p => filters.availability === 'out_of_stock' ? Number(p.stock) <= 0 : true),
-    [products, filters.availability]
-  );
-
-  const pageTitle = categorySlug === 'accessories'
-    ? tr('accessories')
-    : categorySlug
-      ? `${tr('products')} - ${tr(categorySlug) || categorySlug}`
-      : tr('products');
-
-  return <section className="section"><SEO title={pageTitle} /><div className="container"><div className="product-toolbar"><div><span className="eyebrow">Rare Oud Catalogue</span><h1 className="section-title">{categorySlug === 'accessories' ? tr('accessories') : tr('products')}</h1><p className="muted">{visible.length} {tr('results')}</p></div></div><ProductFilters filters={filters} setFilters={setFilters} categorySlug={categorySlug} products={products} />{loading ? <SkeletonGrid /> : <div className="grid product-grid">{visible.map(p => <ProductCard key={p.id} product={p} />)}{!visible.length && <EmptyState title={tr('noResults')} body={tr('noResultsBody')} />}</div>}</div></section>;
+import { normalizeCatalog, categoryTitle } from '../utils/catalog.js';
+const PAGE_SIZE=12;
+export default function Products({ defaultCategory }={}) {
+  const {slug}=useParams();const location=useLocation();
+  const categorySlug=slug==='medium'?'intermediate':slug||defaultCategory||(location.pathname==='/accessories'?'accessories':undefined);
+  const {tr,lang}=useLanguage();const ar=lang==='ar';
+  const [filters,setFilters]=useState({});const [page,setPage]=useState(1);const [sort,setSort]=useState('featured');const [attempt,retry]=useState(0);
+  const [state,setState]=useState({products:[],total:0,loading:true,error:false});const filterKey=JSON.stringify(filters);
+  useEffect(()=>{setPage(1)},[categorySlug,filterKey,sort]);
+  useEffect(()=>{
+    const controller=new AbortController();setState(s=>({...s,loading:true,error:false}));
+    const params={category:categorySlug,q:filters.search||undefined,condition:filters.condition||undefined,wood:categorySlug!=='accessories'?filters.wood||undefined:undefined,accessory:categorySlug==='accessories'?filters.accessory||undefined:undefined,country:filters.country||undefined,sort,limit:PAGE_SIZE,offset:(page-1)*PAGE_SIZE,available:filters.availability==='in_stock'?'true':filters.availability==='out_of_stock'?'false':undefined};
+    api.get('/products',{params,signal:controller.signal}).then(({data})=>{if(!controller.signal.aborted)setState({...normalizeCatalog(data),loading:false,error:false})}).catch(()=>{if(!controller.signal.aborted)setState({products:[],total:0,loading:false,error:true})});
+    return ()=>controller.abort();
+  },[categorySlug,filterKey,page,sort,attempt]);
+  const title=categorySlug?categoryTitle(categorySlug,lang):tr('products');const pages=Math.max(1,Math.ceil(state.total/PAGE_SIZE));
+  function changePage(next){setPage(next);document.querySelector('.atelier-catalog')?.scrollIntoView({block:'start',behavior:'instant'});}
+  return <section className="section atelier-catalog"><SEO title={title}/><div className="container">
+    <nav className="catalog-breadcrumb" aria-label={ar?'مسار الصفحة':'Breadcrumb'}><Link to="/">{tr('home')}</Link><span>/</span><span>{title}</span></nav>
+    <div className="product-toolbar"><div><h1 className="section-title">{title}</h1><p className="muted" aria-live="polite">{state.loading?(ar?'جارٍ تحميل المجموعة…':'Loading collection…'):state.error?'':`${state.total} ${tr('results')}`}</p></div><label className="catalog-sort">{ar?'ترتيب حسب':'Sort by'}<select value={sort} onChange={e=>setSort(e.target.value)}><option value="featured">{ar?'المختارات':'Featured'}</option><option value="newest">{ar?'الأحدث':'Newest'}</option><option value="price_asc">{ar?'السعر: من الأقل':'Price: low to high'}</option><option value="price_desc">{ar?'السعر: من الأعلى':'Price: high to low'}</option></select></label></div>
+    <ProductFilters filters={filters} setFilters={setFilters} categorySlug={categorySlug} products={state.products}/>
+    {state.loading?<SkeletonGrid count={8}/>:state.error?<div role="alert" className="catalog-state"><h2>{ar?'تعذّر تحميل المنتجات':'Products could not be loaded'}</h2><p>{ar?'قد يكون الاتصال منقطعاً. أعد المحاولة.':'The connection may be unavailable. Please try again.'}</p><button className="btn" onClick={()=>retry(n=>n+1)}>{ar?'إعادة المحاولة':'Try again'}</button></div>:state.products.length?<><div className="grid product-grid">{state.products.map(p=><ProductCard key={p.id} product={p}/>)}</div>{pages>1&&<nav className="catalog-pagination" aria-label={ar?'صفحات المنتجات':'Product pages'}><button className="btn secondary" disabled={page<=1} onClick={()=>changePage(page-1)}>{ar?'السابق':'Previous'}</button><span aria-live="polite">{ar?`صفحة ${page} من ${pages}`:`Page ${page} of ${pages}`}</span><button className="btn secondary" disabled={page>=pages} onClick={()=>changePage(page+1)}>{ar?'التالي':'Next'}</button></nav>}</>:<div className="catalog-state" role="status"><h2>{tr('noResults')}</h2><p>{tr('noResultsBody')}</p><button className="btn" onClick={()=>{setFilters({});setPage(1)}}>{tr('reset')}</button></div>}
+  </div></section>;
 }

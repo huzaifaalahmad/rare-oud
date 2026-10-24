@@ -1,0 +1,57 @@
+/* Purple brand, original fonts and the owner's gallery artwork. */
+.atelier-hero{padding:0;background:var(--bg)}
+.atelier-hero-image{background:#11121c;overflow:hidden}
+.atelier-hero-image picture{display:block}
+.atelier-hero-image img{display:block;width:100%;height:auto;aspect-ratio:21/8;object-fit:cover;max-height:660px}
+.atelier-hero-intro{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:40px;padding-block:32px 34px}
+.atelier-hero-intro h1{font-family:var(--font-arabic-display);font-size:clamp(27px,3.2vw,48px);line-height:1.4;color:var(--heading);margin:0 0 12px;max-width:26ch}
+html[lang=en] .atelier-hero-intro h1{font-family:var(--font-latin-display);font-size:clamp(30px,3.6vw,52px);line-height:1.18;max-width:24ch}
+.atelier-hero-intro p{max-width:62ch;color:var(--muted);line-height:1.8;margin:0}
+.atelier-hero-actions{display:flex;flex-direction:column;min-width:180px;gap:10px}
+.collection-navigation{display:flex;justify-content:space-between;align-items:center;gap:12px;border-block:1px solid var(--border);padding-block:16px}
+.collection-navigation a{padding:8px 16px;text-decoration:none;font-size:16px;font-weight:700;color:var(--heading)}
+.collection-navigation a:hover{text-decoration:underline;text-underline-offset:6px}
+.atelier-collection.section,.atelier-accessories.section{padding-block:52px}
+.atelier-accessories{background:var(--surface-2)}
+.collection-heading{display:flex;justify-content:space-between;align-items:end;gap:24px;margin-bottom:28px}
+.collection-heading p{margin-block:8px 0}
+.collection-heading .section-title{margin:0}
+.product-card.card{border-radius:16px;box-shadow:none;background:var(--surface);overflow:hidden}
+.product-card .product-image-link{display:block;background:var(--surface-2)}
+.product-card .product-image-link img{display:block;width:100%;aspect-ratio:4/5;object-fit:contain;padding:14px;background:var(--surface-2);height:auto;transition:transform .3s}
+.product-card .product-image-link:hover img{transform:scale(1.035)}
+.product-card .product-body{padding:20px}
+.product-card .product-body::before,.product-card .product-body::after{display:none}
+.product-card .eyebrow{text-transform:none;letter-spacing:0;font-size:13px;font-weight:400}
+.product-card .product-body h3{font-size:18px;line-height:1.6;margin-block:9px}
+.product-card .product-body p{font-size:14px;line-height:1.6}
+.product-card .price{display:block;margin-block:14px;font-size:23px}
+.product-card-actions{display:flex;flex-wrap:wrap;gap:8px}
+.product-card-actions .btn{font-size:13px;padding:10px 12px;min-height:42px}
+.product-card-actions .btn.secondary{border:0;padding-inline:5px}
+.product-card-actions .icon-btn{margin-inline-start:auto}
+.product-badge{font-size:12px!important;max-width:calc(100% - 24px)}
+.atelier-policies.section{padding-block:58px}
+.atelier-policies .policy-grid{gap:40px}
+.policy-summary{padding-inline:10px;min-width:0}
+.policy-summary svg{color:var(--heading)}
+.policy-summary h3{font-size:20px;line-height:1.5;margin-block:15px 9px;color:var(--heading)}
+.policy-summary p{font-size:15px;line-height:1.9;max-width:48ch}
+.policy-summary .text-link{font-size:14px;display:inline-block;margin-top:6px}
+.catalog-state{grid-column:1/-1;text-align:center;border:1px solid var(--border);border-radius:16px;padding:44px 20px;background:var(--surface)}
+.catalog-state .btn{margin-top:15px}
+.catalog-breadcrumb{display:flex;gap:12px;font-size:14px;margin-bottom:26px;color:var(--muted)}
+.catalog-sort{font-size:13px;min-width:180px;margin:0;gap:8px}
+.catalog-sort select{padding:10px 14px;border-radius:10px}
+.catalog-pagination{display:flex;justify-content:center;align-items:center;gap:24px;margin-top:38px}
+.catalog-pagination .btn{min-width:110px}
+.catalog-pagination button:disabled{opacity:.4;cursor:default;transform:none;box-shadow:none}
+.local-review-banner{padding:10px 18px;text-align:center;background:#4a144d;color:#fff;font-size:13px;line-height:1.7}
+.atelier-catalog .filter-grid select,.atelier-catalog .filter-grid input{min-width:0}
+.atelier-catalog .product-toolbar .section-title{margin:0}
+@media(min-width:1020px){.product-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media(max-width:860px){.atelier-hero-intro{grid-template-columns:1fr;gap:24px}.atelier-hero-actions{flex-direction:row;min-width:0}.collection-navigation{gap:4px;flex-wrap:wrap;justify-content:center}.collection-navigation a{font-size:14px;padding:8px 13px}.atelier-collection.section,.atelier-accessories.section{padding-block:36px}.atelier-policies .policy-grid{grid-template-columns:1fr;gap:28px}.policy-summary+.policy-summary{padding-top:28px;border-top:1px solid var(--border)}.collection-heading{align-items:start}.product-card .product-body{padding:14px}}
+@media(max-width:560px){.atelier-hero-image img{aspect-ratio:21/8;object-fit:contain;object-position:center}.atelier-hero-intro{padding-block:25px}.atelier-hero-intro h1{font-size:29px}.atelier-hero-actions .btn{width:auto;flex:1;min-width:0;font-size:13px;padding:12px}.product-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.product-card .product-image-link img{padding:6px}.product-card .product-body h3{font-size:15px}.product-card .product-body p,.product-card .eyebrow{font-size:12px}.product-card .price{font-size:20px}.product-card-actions .btn{width:100%}.product-card-actions .btn.secondary{width:auto}.product-card .product-badge{font-size:10px!important;padding:5px 8px}.collection-heading .text-link{font-size:13px;white-space:nowrap}.catalog-pagination{gap:12px}.catalog-pagination .btn{min-width:0;width:auto}.catalog-sort{width:100%}.atelier-catalog .filter-grid{grid-template-columns:1fr}.local-review-banner{font-size:11px}}
+@media(prefers-reduced-motion:reduce){.product-card .product-image-link img{transition:none}}
+
+.atelier-catalog{scroll-margin-top:115px}

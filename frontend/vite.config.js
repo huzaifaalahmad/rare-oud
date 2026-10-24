@@ -1,16 +1,24 @@
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
+import localReview from './review-server.mjs';
 
-export default defineConfig({
-  plugins: [react()],
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), 'VITE_');
+  if (mode === 'production' && env.VITE_LOCAL_REVIEW === 'true') {
+    throw new Error('Production build cannot use local review mode.');
+  }
+  return ({
+  plugins: [react(), ...(mode === 'review' ? [localReview()] : [])],
   test: {
     environment: 'jsdom',
     include: ['src/**/*.test.{js,jsx,ts,tsx}'],
     globals: true
   },
   server: {
-    port: 5173,
-    proxy: {
+    host: '127.0.0.1',
+    port: mode === 'review' ? 4204 : 5173,
+    strictPort: true,
+    proxy: mode === 'review' ? undefined : {
       '/api': { target: 'http://localhost:5000', changeOrigin: true },
       '/uploads': { target: 'http://localhost:5000', changeOrigin: true }
     }
@@ -28,4 +36,5 @@ export default defineConfig({
       }
     }
   }
+});
 });

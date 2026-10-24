@@ -62,6 +62,7 @@ function buildFilters(query = {}) {
     params.condition = String(query.condition).slice(0, 20);
   }
   if (query.available === 'true') where.push('p.stock>0');
+  if (query.available === 'false') where.push('p.stock<=0');
   if (query.featured === '1' || query.featured === 'true') where.push('p.is_featured=TRUE');
   if (query.country) {
     const country = String(query.country).slice(0, 60).replace(/[\%_]/g, '');

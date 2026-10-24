@@ -16,6 +16,12 @@ export default function Navbar() {
   const [unread, setUnread] = useState(0);
   const [whatsappPhone, setWhatsappPhone] = useState('');
   const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    const close = event => { if (event.key === 'Escape' && open) { setOpen(false); document.getElementById('more-links-trigger')?.focus(); } };
+    document.addEventListener('keydown', close);
+    return () => document.removeEventListener('keydown', close);
+  }, [open]);
+
 
   const isArabic = lang === 'ar';
   const showUserLinks = !loading && Boolean(user);
@@ -189,6 +195,8 @@ export default function Navbar() {
             type="button"
             aria-label={isArabic ? 'فتح المزيد من الروابط' : 'Open more links'}
             aria-expanded={open}
+            aria-controls="more-links-panel"
+            id="more-links-trigger"
             onClick={() => setOpen(v => !v)}
           >
             {open ? <Icon name="close" size={20} /> : <Icon name="menu" size={20} />}
@@ -197,7 +205,7 @@ export default function Navbar() {
         </div>
       </div>
 
-      <div className={`container mobile-menu ${open ? 'open' : ''}`}>
+      <div id="more-links-panel" className={`container mobile-menu ${open ? 'open' : ''}`}>
         <div className="mobile-menu-section mobile-menu-primary">
           {primaryLinks.map(renderLink)}
         </div>

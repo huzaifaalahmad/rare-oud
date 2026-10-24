@@ -9,7 +9,9 @@
     "security:audit": "npm audit --audit-level=moderate",
     "secret:scan": "node ../scripts/secret-scan.js",
     "test:a11y": "npm run build && node tests/run-playwright.mjs tests/a11y.spec.js",
-    "test:motion": "npm run build && node tests/run-playwright.mjs tests/reduced-motion.spec.js"
+    "test:motion": "npm run build && node tests/run-playwright.mjs tests/reduced-motion.spec.js",
+    "review": "vite --mode review",
+    "test:catalog-backend": "node ../scripts/catalog-filter-regression.cjs"
   },
   "dependencies": {
     "@sentry/react": "^8.25.0",

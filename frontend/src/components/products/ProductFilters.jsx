@@ -66,27 +66,27 @@ export default function ProductFilters({ filters, setFilters, categorySlug, prod
   const accessoryOptions = buildAccessoryOptions(products, lang);
 
   useEffect(() => setFilters(debouncedDraft), [debouncedDraft, setFilters]);
-  useEffect(() => setDraft(filters || {}), []); // initial hydration only to avoid fighting local typing
+  useEffect(() => { if (!Object.keys(filters || {}).length) setDraft(current => Object.keys(current).length ? {} : current); }, [filters]);
 
   function set(k, v) { setDraft(current => ({ ...current, [k]: v })); }
   function reset() { setDraft({}); setFilters({}); }
 
   return <div className="card" style={{ padding: '1rem', marginBottom: '1rem' }}>
     <div className="filter-grid">
-      <input aria-label="search" placeholder={isAccessories ? tr('accessorySearchPlaceholder') : tr('searchPlaceholder')} value={draft.search || ''} onChange={e => set('search', e.target.value)} />
-      <select value={draft.condition || ''} onChange={e => set('condition', e.target.value)}><option value="">{tr('condition')}</option><option value="new">{tr('new')}</option><option value="used">{tr('used')}</option></select>
-      <select value={draft.availability || ''} onChange={e => set('availability', e.target.value)}><option value="">{tr('availability')}</option><option value="in_stock">{tr('inStock')}</option><option value="out_of_stock">{tr('outOfStock')}</option></select>
+      <input aria-label={lang==='ar'?'البحث في المنتجات':'Search products'} placeholder={isAccessories ? tr('accessorySearchPlaceholder') : tr('searchPlaceholder')} value={draft.search || ''} onChange={e => set('search', e.target.value)} />
+      <select aria-label={tr('condition')} value={draft.condition || ''} onChange={e => set('condition', e.target.value)}><option value="">{tr('condition')}</option><option value="new">{tr('new')}</option><option value="used">{tr('used')}</option></select>
+      <select aria-label={tr('availability')} value={draft.availability || ''} onChange={e => set('availability', e.target.value)}><option value="">{tr('availability')}</option><option value="in_stock">{tr('inStock')}</option><option value="out_of_stock">{tr('outOfStock')}</option></select>
       {isAccessories ? (
-        <select value={draft.accessory || ''} onChange={e => set('accessory', e.target.value)}>
+        <select aria-label={tr('accessoryType')} value={draft.accessory || ''} onChange={e => set('accessory', e.target.value)}>
           <option value="">{tr('accessoryType')}</option>
           {accessoryOptions.map(option => (
             <option value={option.value} key={option.value}>{option[lang] || option.en}</option>
           ))}
         </select>
       ) : (
-        <input placeholder={tr('wood')} value={draft.wood || ''} onChange={e => set('wood', e.target.value)} />
+        <input aria-label={tr('wood')} placeholder={tr('wood')} value={draft.wood || ''} onChange={e => set('wood', e.target.value)} />
       )}
-      <input placeholder={tr('country')} value={draft.country || ''} onChange={e => set('country', e.target.value)} />
+      <input aria-label={tr('country')} placeholder={tr('country')} value={draft.country || ''} onChange={e => set('country', e.target.value)} />
       <button className="btn ghost" type="button" onClick={reset}>{tr('reset')}</button>
     </div>
   </div>;

@@ -12,7 +12,7 @@ function ProductCard({ product }) {
   const [likes, setLikes] = useState(Number(product.likes_count || 0));
   const [msg, setMsg] = useState('');
 
-  const name = lang === 'ar' ? product.name_ar : product.name_en;
+  const name = (lang === 'ar' ? product.name_ar : product.name_en) || product.name_ar || product.name_en || 'Rare Oud';
   const isOut = Number(product.stock) <= 0;
   const category = lang === 'ar' ? product.category_name_ar : product.category_name_en;
   const wood = lang === 'ar' ? product.woods_ar : product.woods_en;
@@ -25,9 +25,11 @@ function ProductCard({ product }) {
       return;
     }
 
+    try {
     const { data } = await api.post(`/favorites/${product.id}/toggle`);
     setLikes(Number(data.likes_count || 0));
     setMsg(data.favorited ? (lang === 'ar' ? 'أضيفت' : 'Added') : (lang === 'ar' ? 'أزيلت' : 'Removed'));
+    } catch { setMsg(lang === 'ar' ? 'تعذّر تحديث المفضلة. أعد المحاولة.' : 'Favorites could not be updated. Try again.'); }
   }
 
   return (
@@ -57,7 +59,7 @@ function ProductCard({ product }) {
           <span><Icon name="favorite" size={14} /> {likes}</span>
         </p>
 
-        <strong className="price">${Number(product.price || 0).toLocaleString()}</strong>
+        <strong className="price"><bdi dir="ltr">${Number(product.price || 0).toLocaleString()}</bdi></strong>
 
         <div className="product-card-actions">
           <Link className="btn" to={productPath}>
@@ -67,7 +69,7 @@ function ProductCard({ product }) {
           <Link className="btn secondary" to={productPath}>
             {tr('details')}
           </Link>
-          <button className="icon-btn" aria-label="favorite" onClick={favorite}>
+          <button className="icon-btn" aria-label={lang === 'ar' ? 'إضافة إلى المفضلة' : 'Add to favorites'} onClick={favorite}>
             <Icon name="favorite" size={18} />
           </button>
         </div>

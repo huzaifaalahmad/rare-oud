@@ -1,77 +1,41 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { PackageCheck, RefreshCw, Music2 } from 'lucide-react';
 import Hero from '../components/home/Hero.jsx';
 import ProductCard from '../components/products/ProductCard.jsx';
 import SEO from '../components/seo/SEO.jsx';
 import EmptyState from '../components/common/EmptyState.jsx';
+import SkeletonGrid from '../components/common/SkeletonGrid.jsx';
 import api from '../services/api.js';
 import { useLanguage } from '../context/LanguageContext.jsx';
-
-const fallbackPolicies = {
-  shipping: {
-    ar: 'تغليف آمن وشحن محلي ودولي مع توثيق حالة الآلة قبل الإرسال.',
-    en: 'Secure packaging and local/international shipping with instrument condition documentation before dispatch.'
-  },
-  returns: {
-    ar: 'سياسة واضحة حسب حالة المنتج والفحص بعد الاستلام.',
-    en: 'Clear return policy based on product condition and inspection after delivery.'
-  },
-  afterSales: {
-    ar: 'دعم بعد البيع للضبط، النصائح، والصيانة الأساسية.',
-    en: 'After-sales support for tuning, advice, and basic maintenance.'
-  }
-};
-
-function blockText(blocks, key, lang, fallback) {
-  const block = blocks.find(b => b.block_key === key || b.block_key === `home.${key}`);
-  return block?.[lang === 'ar' ? 'content_ar' : 'content_en'] || fallback;
-}
-
+import { normalizeCatalog, summarizeText, categoryTitle } from '../utils/catalog.js';
 export default function Home() {
-  const [products, setProducts] = useState([]);
+  const [catalog, setCatalog] = useState({ products: [], loading: true, error: false });
   const [blocks, setBlocks] = useState([]);
-  const { tr, lang } = useLanguage();
-
+  const [attempt, retry] = useState(0);
+  const { tr, lang } = useLanguage(); const ar = lang === 'ar';
   useEffect(() => {
-    api.get('/products?featured=1')
-      .then(r => setProducts(r.data.products || r.data || []))
-      .catch(() => setProducts([]));
-    api.get('/content/pages/home')
-      .then(r => setBlocks(r.data.blocks || []))
-      .catch(() => {});
-  }, []);
-
-  const policies = useMemo(() => ([
-    { key: 'shipping', title: tr('shipping'), body: blockText(blocks, 'policy.shipping.body', lang, fallbackPolicies.shipping[lang] || fallbackPolicies.shipping.ar) },
-    { key: 'returns', title: tr('returns'), body: blockText(blocks, 'policy.returns.body', lang, fallbackPolicies.returns[lang] || fallbackPolicies.returns.ar) },
-    { key: 'afterSales', title: tr('afterSales'), body: blockText(blocks, 'policy.afterSales.body', lang, fallbackPolicies.afterSales[lang] || fallbackPolicies.afterSales.ar) }
-  ]), [blocks, lang, tr]);
-
-  return <>
-    <SEO title={lang === 'ar' ? 'الرئيسية' : 'Home'} />
-    <Hero />
-    <section className="section compact">
-      <div className="container policy-grid stagger">
-        {policies.map(policy => <div className="card policy-card" key={policy.key}>
-          <h3>{policy.title}</h3>
-          <p className="muted">{policy.body}</p>
-        </div>)}
-      </div>
-    </section>
-    <section className="section">
-      <div className="container">
-        <span className="eyebrow">Rare Oud</span>
-        <h2 className="section-title">{tr('featured')}</h2>
-        <div className="grid product-grid">
-          {products.length ? products.slice(0, 8).map(p => <ProductCard key={p.id} product={p} />) : (
-            <EmptyState
-              title={lang === 'ar' ? 'لا توجد منتجات مميزة حاليًا' : 'No featured products yet'}
-              body={lang === 'ar' ? 'ستظهر المنتجات المفعلة من لوحة الإدارة هنا بعد إضافتها.' : 'Featured products added from the admin dashboard will appear here.'}
-              actionLabel={tr('browseProducts')}
-              to="/products"
-            />
-          )}
-        </div>
-      </div>
-    </section>
+    const controller = new AbortController();
+    setCatalog(c => ({ ...c, loading: true, error: false }));
+    api.get('/products', { params: { featured: '1', limit: 24 }, signal: controller.signal })
+      .then(({ data }) => { if (!controller.signal.aborted) setCatalog({ ...normalizeCatalog(data), loading: false, error: false }); })
+      .catch(() => { if (!controller.signal.aborted) setCatalog({ products: [], loading: false, error: true }); });
+    api.get('/content/pages/home', { signal: controller.signal }).then(({ data }) => { if (!controller.signal.aborted) setBlocks(Array.isArray(data.blocks) ? data.blocks : []); }).catch(() => {});
+    return () => controller.abort();
+  }, [attempt]);
+  const ouds = catalog.products.filter(p => Number(p.category_id) !== 5).slice(0, 4);
+  const accessories = catalog.products.filter(p => Number(p.category_id) === 5).slice(0, 4);
+  const policies = [{key:'shipping',to:'/shipping',Icon:PackageCheck},{key:'returns',to:'/return-policy',Icon:RefreshCw},{key:'afterSales',to:'/after-sales',Icon:Music2}];
+  return <><SEO title={ar ? 'الرئيسية' : 'Home'} /><Hero blocks={blocks} />
+    <nav className="container collection-navigation" aria-label={ar ? 'تصفح التصنيفات' : 'Browse categories'}>{['educational','intermediate','rare','vip','accessories'].map(s => <Link key={s} to={`/category/${s}`}>{categoryTitle(s,lang)}</Link>)}</nav>
+    <section className="section atelier-collection" aria-labelledby="featured-title"><div className="container">
+      <div className="collection-heading"><div><h2 className="section-title" id="featured-title">{tr('featured')}</h2><p className="muted">{ar ? 'تعرّف على تفاصيل كل آلة، وخشبها، وصوتها.' : 'Explore each instrument, its wood and its sound.'}</p></div><Link className="text-link" to="/products">{ar ? 'كل الأعواد' : 'All ouds'}</Link></div>
+      {catalog.loading ? <SkeletonGrid count={4} /> : catalog.error ? <div className="catalog-state" role="alert"><h3>{ar ? 'تعذّر تحميل المجموعة' : 'The collection could not be loaded'}</h3><p>{ar ? 'تحقّق من الاتصال وأعد المحاولة.' : 'Check your connection and try again.'}</p><button className="btn" onClick={() => retry(n=>n+1)}>{ar ? 'إعادة المحاولة' : 'Try again'}</button></div> : <div className="grid product-grid">{ouds.map(p=><ProductCard key={p.id} product={p}/>)}{!ouds.length && <EmptyState title={ar?'لا توجد أعواد مميزة حالياً':'No featured ouds at the moment'} body={ar?'تصفح بقية المجموعة.':'Explore the rest of the collection.'} actionLabel={tr('browseProducts')} to="/products"/>}</div>}
+    </div></section>
+    {!!accessories.length && <section className="section atelier-accessories"><div className="container"><div className="collection-heading"><h2 className="section-title">{tr('accessories')}</h2><Link className="text-link" to="/accessories">{ar?'كل الأكسسوارات':'All accessories'}</Link></div><div className="grid product-grid">{accessories.map(p=><ProductCard key={p.id} product={p}/>)}</div></div></section>}
+    <section className="section compact atelier-policies" aria-label={ar?'معلومات قبل الطلب':'Before you inquire'}><div className="container policy-grid">{policies.map(({key,to,Icon})=>{
+      const block=blocks.find(b=>b.block_key===`policy.${key}.body`||b.block_key===`home.policy.${key}.body`);const text=block?.[`content_${lang}`];
+      return <article className="policy-summary" key={key}><Icon size={25} aria-hidden="true"/><h3>{tr(key)}</h3><p className="muted">{text?summarizeText(text):(ar?'اطّلع على التفاصيل قبل تأكيد طلبك.':'Read the details before confirming your request.')}</p><Link className="text-link" to={to}>{ar?'اقرأ التفاصيل':'Read the details'}</Link></article>;
+    })}</div></section>
   </>;
 }

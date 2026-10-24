@@ -4,6 +4,7 @@ import Navbar from './components/common/Navbar.jsx';
 import Footer from './components/common/Footer.jsx';
 import ProtectedAdminRoute from './components/admin/ProtectedAdminRoute.jsx';
 import api from './services/api.js';
+import { isLocalReview } from './utils/catalog.js';
 
 const Home = lazy(() => import('./pages/Home.jsx'));
 const Products = lazy(() => import('./pages/Products.jsx'));
@@ -99,7 +100,7 @@ function useSiteVisitTracking() {
   const location = useLocation();
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined' || isLocalReview) return;
     const path = `${location.pathname}${location.search || ''}`;
     const sessionKey = `rare_oud_visit:${path}`;
     if (window.sessionStorage.getItem(sessionKey)) return;
@@ -119,6 +120,7 @@ export default function App(){
 
   return <>
     <a className="skip-link" href="#main-content">Skip to content</a>
+    {isLocalReview && <div className="local-review-banner">معاينة محلية — بيانات عامة محفوظة للمراجعة، بدون تسجيل أو إرسال طلبات · Local review, no requests are submitted</div>}
     <Navbar />
     <main className="app-main" id="main-content">
       <Suspense fallback={<PageLoader/>}>

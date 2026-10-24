@@ -35,3 +35,6 @@ playwright-report/
 Thumbs.db
 .vscode/
 .idea/
+
+# Local owner review: public snapshots and inspection evidence
+evidence/

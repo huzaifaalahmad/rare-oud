@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { isLocalReview } from '../utils/catalog.js';
 import { getAccessToken, setAccessToken, clearAccessToken, notifyUnauthorized } from './tokenStore.js';
 
 const api = axios.create({
@@ -52,6 +53,7 @@ export function clearCsrfToken() {
 }
 
 api.interceptors.request.use(async (config) => {
+  if (isLocalReview && isUnsafeMethod(config)) throw new axios.AxiosError('Local review: submissions are disabled', 'LOCAL_REVIEW_READ_ONLY', config);
   config.headers ||= {};
   const token = getAccessToken();
   if (token) config.headers.Authorization = `Bearer ${token}`;
