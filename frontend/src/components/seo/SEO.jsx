@@ -1,6 +1,8 @@
 import { useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 
-export default function SEO({ title, description, image = '/assets/logo.png', type = 'website' }) {
+export default function SEO({ title, description, image = '/visual/oud-gallery.webp', type = 'website' }) {
+  const {pathname}=useLocation();
   useEffect(() => {
     const site = 'Rare Oud | العود النادر';
     document.title = title ? `${title} — ${site}` : site;
@@ -9,7 +11,8 @@ export default function SEO({ title, description, image = '/assets/logo.png', ty
       'og:title': document.title,
       'og:description': description || 'أعواد تعليمية، متوسطة، نادرة، VIP وإكسسوارات مختارة بعناية.',
       'og:type': type,
-      'og:image': image,
+      'og:image': new URL(image,window.location.origin).href,
+      'og:url': window.location.origin+pathname,
       'twitter:card': 'summary_large_image'
     };
     Object.entries(tags).forEach(([name, content]) => {
@@ -22,6 +25,9 @@ export default function SEO({ title, description, image = '/assets/logo.png', ty
       }
       el.setAttribute('content', content);
     });
-  }, [title, description, image, type]);
+    let canonical=document.head.querySelector('link[rel="canonical"]');
+    if(!canonical){canonical=document.createElement('link');canonical.rel='canonical';document.head.appendChild(canonical)}
+    canonical.href=window.location.origin+pathname;
+  }, [title, description, image, type, pathname]);
   return null;
 }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { Heart, MessageCircle, Music2, PlayCircle, Send, Star } from 'lucide-react';
 import api from '../services/api.js';
@@ -6,6 +6,7 @@ import { useLanguage } from '../context/LanguageContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import SEO from '../components/seo/SEO.jsx';
 import { mediaUrl } from '../utils/media.js';
+import { displayDimensions } from '../utils/productPresentation.js';
 
 function cleanDriveUrl(url) {
   if (!url) return '';
@@ -43,6 +44,7 @@ export default function ProductDetailPage() {
   const [favorite, setFavorite] = useState({ known: false, value: false, count: 0, message: '' });
   const [selectedImage, setSelectedImage] = useState('');
   const [orderOpen, setOrderOpen] = useState(false);
+  const [whatsappPhone,setWhatsappPhone] = useState('');
   const [order, setOrder] = useState({
     customer_name: '',
     customer_email: '',
@@ -107,10 +109,16 @@ export default function ProductDetailPage() {
     }));
   }, [user?.id]);
 
-  const settingsPromise = useMemo(
-    () => api.get('/content/settings').catch(() => ({ data: { settings: {} } })),
-    []
-  );
+  useEffect(() => {
+    let active=true;
+    api.get('/content/settings').then(({data})=>{
+      const rows=Array.isArray(data.settings)?data.settings:Object.values(data.settings||{});
+      const row=rows.find(item=>item.setting_key==='whatsapp_phone')||{};
+      if(active)setWhatsappPhone(String(row.value_ar||row.value_en||'').replace(/\D/g,''));
+    }).catch(()=>{});
+    return()=>{active=false};
+  },[]);
+  useEffect(()=>{setOrderOpen(false);setSelectedImage('')},[id]);
 
   if (state.loading) {
     return <section className="section container">{isArabic ? 'جاري تحميل المنتج...' : 'Loading product...'}</section>;
@@ -132,7 +140,8 @@ export default function ProductDetailPage() {
   const avg = Number(p.avg_rating || 0);
   const galleryImages = Array.from(new Set([p.primary_image, ...images.map(i => i.image_url)].filter(Boolean))).slice(0, 4);
   const activeImage = selectedImage || galleryImages[0] || p.primary_image || '';
-  const gallerySlots = [...galleryImages, ...Array(Math.max(0, 4 - galleryImages.length)).fill('')].slice(0, 4);
+  const gallerySlots = galleryImages;
+  const backPath=Number(p.category_id)===5?'/accessories':'/products';
 
   async function toggleFavorite() {
     if (!user) {
@@ -143,6 +152,7 @@ export default function ProductDetailPage() {
       return;
     }
 
+    try {
     const { data } = await api.post(`/favorites/${p.id}/toggle`);
     setFavorite({
       known: true,
@@ -152,18 +162,12 @@ export default function ProductDetailPage() {
         ? (isArabic ? 'أضيف إلى المفضلة' : 'Added to favorites')
         : (isArabic ? 'تمت الإزالة من المفضلة' : 'Removed from favorites')
     });
+    } catch { setFavorite(f=>({...f,message:isArabic?'تعذّر تحديث المفضلة. أعد المحاولة.':'Favorites could not be updated. Please try again.'})); }
   }
 
-  async function whatsapp() {
-    const { data } = await settingsPromise;
-    const settingsArray = Array.isArray(data.settings) ? data.settings : Object.values(data.settings || {});
-    const whatsappSetting = settingsArray.find(s => s.setting_key === 'whatsapp_phone') || {};
-    const raw = (whatsappSetting.value_ar || whatsappSetting.value_en || '').replace(/\D/g, '');
-    const text = encodeURIComponent(
-      `${isArabic ? 'مرحباً، أريد الاستفسار عن' : 'Hello, I am interested in'} ${name}\n${window.location.href}\n${isArabic ? 'السعر التقريبي' : 'Indicative price'}: $${Number(p.price).toFixed(2)}`
-    );
-    window.open(`https://wa.me/${raw || '963000000000'}?text=${text}`, '_blank', 'noopener,noreferrer');
-  }
+  const whatsappHref=whatsappPhone?`https://wa.me/${whatsappPhone}?text=${encodeURIComponent(
+    `${isArabic?'مرحباً، أريد الاستفسار عن':'Hello, I am interested in'} ${name}\n${window.location.href}\n${isArabic?'السعر التقريبي':'Indicative price'}: $${Number(p.price).toFixed(2)}`
+  )}`:'';
 
   async function submitOrder(e) {
     e.preventDefault();
@@ -242,6 +246,7 @@ export default function ProductDetailPage() {
     <>
     <SEO title={name} description={desc} image={mediaUrl(activeImage || p.primary_image)} type="product" />
     <section className="section product-luxury-page">
+      <nav className="container catalog-breadcrumb" aria-label={isArabic?'مسار الصفحة':'Breadcrumb'}><Link to="/">{tr('home')}</Link><span>/</span><Link to={backPath}>{Number(p.category_id)===5?tr('accessories'):tr('products')}</Link><span>/</span><span>{name}</span></nav>
       <div className="container product-detail-grid">
         <div className="card product-gallery">
           {activeImage ? (
@@ -253,7 +258,7 @@ export default function ProductDetailPage() {
             </div>
           )}
           <div className="gallery-count">
-            {isArabic ? 'معرض من أربع زوايا' : 'Four-angle gallery'}
+            {isArabic ? `صور المنتج: ${galleryImages.length}` : `${galleryImages.length} product images`}
           </div>
           <div className="thumb-row four-up">
             {gallerySlots.map((imageUrl, index) => (
@@ -291,7 +296,7 @@ export default function ProductDetailPage() {
             <p><strong>{tr('wood')}:</strong> {wood || '-'}</p>
             <p><strong>{tr('origin')}:</strong> {origin || '-'}</p>
             <p><strong>{tr('maker')}:</strong> {maker || '-'}</p>
-            <p><strong>{tr('dimensions')}:</strong> {p.dimensions || '-'}</p>
+            <p><strong>{tr('dimensions')}:</strong> {displayDimensions(p.dimensions,isArabic?'ar':'en')}</p>
             {history && (
               <p><strong>{isArabic ? 'التصنيف التاريخي والجغرافي' : 'Historical / geographic class'}:</strong> {history}</p>
             )}
@@ -304,9 +309,7 @@ export default function ProductDetailPage() {
             <button className="icon-btn" type="button" onClick={toggleFavorite}>
               <Heart size={18} fill={favorite.value ? 'currentColor' : 'none'} /> {isArabic ? 'مفضلة' : 'Favorite'}
             </button>
-            <button className="icon-btn" type="button" onClick={whatsapp}>
-              <MessageCircle size={18} /> {isArabic ? 'استفسار واتساب' : 'WhatsApp Inquiry'}
-            </button>
+            {whatsappHref?<a className="icon-btn" href={whatsappHref} target="_blank" rel="noopener noreferrer"><MessageCircle size={18}/> {isArabic?'استفسار واتساب':'WhatsApp Inquiry'}</a>:<Link className="icon-btn" to="/contact"><MessageCircle size={18}/> {tr('contact')}</Link>}
           </div>
 
           <div className="product-media-actions">
@@ -332,8 +335,8 @@ export default function ProductDetailPage() {
             <form className="card direct-order-form" onSubmit={submitOrder}>
               <h3>{isArabic ? 'طلب المنتج مباشرة' : 'Direct product request'}</h3>
               <div className="form-grid">
-                <input required minLength="6" maxLength="140" placeholder={isArabic ? 'الاسم الثلاثي الكامل' : 'Full three-part name'} value={order.customer_name} onChange={e => setOrder(o => ({ ...o, customer_name: e.target.value }))} />
-                <input type="email" placeholder={isArabic ? 'البريد الإلكتروني اختياري' : 'Email optional'} value={order.customer_email} onChange={e => setOrder(o => ({ ...o, customer_email: e.target.value }))} />
+                <input required minLength="6" maxLength="140" aria-label={isArabic ? 'الاسم الثلاثي الكامل' : 'Full three-part name'} placeholder={isArabic ? 'الاسم الثلاثي الكامل' : 'Full three-part name'} value={order.customer_name} onChange={e => setOrder(o => ({ ...o, customer_name: e.target.value }))} />
+                <input type="email" aria-label={isArabic ? 'البريد الإلكتروني اختياري' : 'Email optional'} placeholder={isArabic ? 'البريد الإلكتروني اختياري' : 'Email optional'} value={order.customer_email} onChange={e => setOrder(o => ({ ...o, customer_email: e.target.value }))} />
                 <select required value={order.customer_phone_country_code} onChange={e => setOrder(o => ({ ...o, customer_phone_country_code: e.target.value }))} aria-label={isArabic ? 'رمز الدولة' : 'Country code'}>
                   {PHONE_COUNTRIES.map(country => (
                     <option value={country.code} key={country.code}>
@@ -341,12 +344,12 @@ export default function ProductDetailPage() {
                     </option>
                   ))}
                 </select>
-                <input required inputMode="tel" placeholder={isArabic ? 'رقم الهاتف' : 'Phone number'} value={order.customer_phone} onChange={e => setOrder(o => ({ ...o, customer_phone: e.target.value }))} />
-                <input placeholder={isArabic ? 'الدولة' : 'Country'} value={order.country} onChange={e => setOrder(o => ({ ...o, country: e.target.value }))} />
-                <input type="number" min="1" max="20" placeholder={isArabic ? 'الكمية' : 'Quantity'} value={order.quantity} onChange={e => setOrder(o => ({ ...o, quantity: e.target.value }))} />
+                <input required inputMode="tel" aria-label={isArabic ? 'رقم الهاتف' : 'Phone number'} placeholder={isArabic ? 'رقم الهاتف' : 'Phone number'} value={order.customer_phone} onChange={e => setOrder(o => ({ ...o, customer_phone: e.target.value }))} />
+                <input aria-label={isArabic ? 'الدولة' : 'Country'} placeholder={isArabic ? 'الدولة' : 'Country'} value={order.country} onChange={e => setOrder(o => ({ ...o, country: e.target.value }))} />
+                <input type="number" min="1" max="20" aria-label={isArabic ? 'الكمية' : 'Quantity'} placeholder={isArabic ? 'الكمية' : 'Quantity'} value={order.quantity} onChange={e => setOrder(o => ({ ...o, quantity: e.target.value }))} />
               </div>
-              <textarea required minLength="5" rows="3" placeholder={isArabic ? 'عنوان التسليم الكامل' : 'Full delivery address'} value={order.customer_address} onChange={e => setOrder(o => ({ ...o, customer_address: e.target.value }))} />
-              <textarea rows="3" placeholder={isArabic ? 'ملاحظات حول الطلب' : 'Notes'} value={order.notes} onChange={e => setOrder(o => ({ ...o, notes: e.target.value }))} />
+              <textarea required minLength="5" rows="3" aria-label={isArabic ? 'عنوان التسليم الكامل' : 'Full delivery address'} placeholder={isArabic ? 'عنوان التسليم الكامل' : 'Full delivery address'} value={order.customer_address} onChange={e => setOrder(o => ({ ...o, customer_address: e.target.value }))} />
+              <textarea rows="3" aria-label={isArabic ? 'ملاحظات حول الطلب' : 'Notes'} placeholder={isArabic ? 'ملاحظات حول الطلب' : 'Notes'} value={order.notes} onChange={e => setOrder(o => ({ ...o, notes: e.target.value }))} />
               <div className="actions-row">
                 <button className="btn" disabled={order.saving}>{order.saving ? (isArabic ? 'جاري الإرسال' : 'Sending') : (isArabic ? 'إرسال إلى الإدارة' : 'Send to Admin')}</button>
                 {order.message && <span className="muted">{order.message}</span>}
@@ -359,14 +362,14 @@ export default function ProductDetailPage() {
       <div className="container section compact">
         <h2>{isArabic ? 'التقييمات' : 'Reviews'}</h2>
         <form className="card" style={{ padding: '1rem', marginBottom: '1rem' }} onSubmit={submitReview}>
-          <div className="rating-stars">
+          <div className="rating-stars" role="group" aria-label={isArabic?'التقييم':'Rating'}>
             {[1, 2, 3, 4, 5].map(n => (
-              <button type="button" key={n} onClick={() => setReview(r => ({ ...r, rating: n }))}>
+              <button type="button" key={n} aria-label={isArabic?`${n} من 5 نجوم`:`${n} out of 5 stars`} aria-pressed={review.rating===n} onClick={() => setReview(r => ({ ...r, rating: n }))}>
                 {n <= review.rating ? '★' : '☆'}
               </button>
             ))}
           </div>
-          <textarea rows="3" placeholder={isArabic ? 'اكتب تعليقك' : 'Write your comment'} value={review.comment} onChange={e => setReview(r => ({ ...r, comment: e.target.value }))} />
+          <textarea rows="3" aria-label={isArabic ? 'اكتب تعليقك' : 'Write your comment'} placeholder={isArabic ? 'اكتب تعليقك' : 'Write your comment'} value={review.comment} onChange={e => setReview(r => ({ ...r, comment: e.target.value }))} />
           <div className="actions-row">
             <button className="btn" disabled={review.saving}>{isArabic ? 'إرسال التقييم' : 'Submit review'}</button>
             {review.message && <span className="muted">{review.message}</span>}

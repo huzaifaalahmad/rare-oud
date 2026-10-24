@@ -1,3 +1,7 @@
 User-agent: *
 Allow: /
-Sitemap: /sitemap.xml
+Disallow: /admin
+Disallow: /profile
+Disallow: /my-orders
+Disallow: /notifications
+Sitemap: https://rare-oud.vercel.app/sitemap.xml

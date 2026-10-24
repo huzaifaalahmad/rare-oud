@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect } from 'react';
+import { Suspense, lazy, useEffect, useLayoutEffect } from 'react';
 import { Routes, Route, useLocation } from 'react-router-dom';
 import Navbar from './components/common/Navbar.jsx';
 import Footer from './components/common/Footer.jsx';
@@ -113,11 +113,17 @@ function useSiteVisitTracking() {
   }, [location.pathname, location.search]);
 }
 
+function RoutePosition(){
+  const {pathname}=useLocation();
+  useLayoutEffect(()=>{window.scrollTo({top:0,left:0,behavior:'instant'})},[pathname]);
+  return null;
+}
 export default function App(){
   useExperienceMotion();
   useSiteVisitTracking();
 
   return <>
+    <RoutePosition/>
     <a className="skip-link" href="#main-content">Skip to content</a>
     {isLocalReview && <div className="local-review-banner">معاينة محلية — بيانات عامة محفوظة للمراجعة، بدون تسجيل أو إرسال طلبات · Local review, no requests are submitted</div>}
     <Navbar />
