@@ -29,6 +29,10 @@ function buildFilters(query = {}) {
     params.category = String(query.category).slice(0, 120);
   }
 
+  // Apply the collection boundary to both rows and totals before pagination.
+  if (query.kind === 'oud') where.push("c.slug<>'accessories'");
+  if (query.kind === 'accessory') where.push("c.slug='accessories'");
+
   const q = typeof query.q === 'string' ? query.q.trim().slice(0, 200) : '';
   if (q) {
     const terms = q

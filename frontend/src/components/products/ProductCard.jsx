@@ -50,9 +50,10 @@ function ProductCard({ product }) {
       </Link>
 
       <div className="product-body music-wave">
-        <div className="eyebrow">{wood || 'Oud'}</div>
+        <div className="eyebrow">{category || (lang==='ar'?'المنتج':'Product')}</div>
         <h3>{name}</h3>
-        <p className="muted">{origin || 'Syria'} • {product.condition_status === 'used' ? tr('used') : tr('new')}</p>
+        {wood&&<p className="muted product-wood">{wood}</p>}
+        <p className="muted">{origin&&`${origin} • `}{product.condition_status === 'used' ? tr('used') : tr('new')}</p>
 
         <p className="muted product-meta-line">
           <span><Icon name="reviews" size={14} /> {product.avg_rating || '-'}</span>

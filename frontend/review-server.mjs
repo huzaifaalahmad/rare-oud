@@ -19,6 +19,7 @@ export default function localReview() {
         if (url.pathname === '/products') {
           const q = Object.fromEntries(url.searchParams); let products = read('catalog.json').products;
           if (q.category) products = products.filter(p => Number(p.category_id) === categoryIds[q.category]);
+          if (q.kind) products = products.filter(p => q.kind === 'accessory' ? Number(p.category_id) === 5 : Number(p.category_id) !== 5);
           if (q.featured) products = products.filter(p => p.is_featured);
           if (q.available) products = products.filter(p => q.available === 'true' ? Number(p.stock)>0 : Number(p.stock)<=0);
           if (q.condition) products = products.filter(p => p.condition_status === q.condition);

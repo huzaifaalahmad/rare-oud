@@ -40,7 +40,6 @@ function useExperienceMotion() {
     document.documentElement.classList.add('motion-enabled');
 
     const selector = [
-      '.app-main .section',
       '.app-main .card',
       '.app-main .product-card',
       '.app-main .policy-card',
@@ -60,7 +59,7 @@ function useExperienceMotion() {
           observer.unobserve(entry.target);
         }
       }
-    }, { rootMargin: '0px 0px -10% 0px', threshold: 0.08 });
+    }, { rootMargin: '0px 0px -5% 0px', threshold: 0 });
 
     function scan() {
       const nodes = Array.from(document.querySelectorAll(selector))
